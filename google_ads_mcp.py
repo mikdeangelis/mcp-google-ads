@@ -450,6 +450,255 @@ class UpdateAssetGroupAssetsInput(BaseModel):
 
 
 # ============================================================================
+# NEGATIVE KEYWORDS INPUT MODELS
+# ============================================================================
+
+class NegativeKeywordLevel(str, Enum):
+    """Level at which negative keywords are applied."""
+    CAMPAIGN = "CAMPAIGN"
+    AD_GROUP = "AD_GROUP"
+
+
+class ListNegativeKeywordsInput(BaseModel):
+    """Input for listing negative keywords."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID to filter by (optional)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID to filter by (optional)")
+    limit: Optional[int] = Field(default=100, ge=1, le=500, description="Maximum negative keywords to return (1-500)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class AddNegativeKeywordsInput(BaseModel):
+    """Input for adding negative keywords."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    keywords: List[str] = Field(..., min_length=1, max_length=200, description="List of negative keywords to add (1-200)")
+    level: NegativeKeywordLevel = Field(default=NegativeKeywordLevel.CAMPAIGN, description="Level: CAMPAIGN or AD_GROUP")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID (required for campaign level)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID (required for ad group level)")
+    match_type: KeywordMatchType = Field(default=KeywordMatchType.PHRASE, description="Match type for negative keywords")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @field_validator('campaign_id', 'ad_group_id')
+    @classmethod
+    def validate_required_ids(cls, v, info):
+        """Validate that required IDs are provided based on level."""
+        return v
+
+
+class RemoveNegativeKeywordsInput(BaseModel):
+    """Input for removing negative keywords."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    criterion_ids: List[str] = Field(..., min_length=1, description="List of negative keyword criterion IDs to remove")
+    level: NegativeKeywordLevel = Field(..., description="Level: CAMPAIGN or AD_GROUP")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID (required for campaign level)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID (required for ad group level)")
+
+
+# ============================================================================
+# BUDGET MANAGEMENT INPUT MODELS
+# ============================================================================
+
+class UpdateCampaignBudgetInput(BaseModel):
+    """Input for updating campaign budget."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: str = Field(..., description="Campaign ID")
+    new_budget_micros: int = Field(..., ge=1000000, description="New daily budget in micros (min: 1000000 = $1)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class GetBudgetUtilizationInput(BaseModel):
+    """Input for getting budget utilization."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_ids: Optional[List[str]] = Field(default=None, description="Campaign IDs to check (optional, defaults to all)")
+    date_range: DatePreset = Field(default=DatePreset.LAST_7_DAYS, description="Date range for utilization calculation")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+# ============================================================================
+# QUALITY SCORE & DIAGNOSTICS INPUT MODELS
+# ============================================================================
+
+class GetKeywordQualityScoresInput(BaseModel):
+    """Input for getting keyword quality scores."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID to filter by (optional)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID to filter by (optional)")
+    min_impressions: Optional[int] = Field(default=0, ge=0, description="Minimum impressions to include")
+    limit: Optional[int] = Field(default=100, ge=1, le=500, description="Maximum keywords to return")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class GetAdStrengthInput(BaseModel):
+    """Input for getting ad strength for responsive search ads."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID to filter by (optional)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID to filter by (optional)")
+    limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum ads to return")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class GetPolicyIssuesInput(BaseModel):
+    """Input for getting policy issues (disapproved ads/assets)."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID to filter by (optional)")
+    include_assets: bool = Field(default=True, description="Include asset policy issues")
+    include_ads: bool = Field(default=True, description="Include ad policy issues")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+# ============================================================================
+# RECOMMENDATIONS INPUT MODELS
+# ============================================================================
+
+class RecommendationType(str, Enum):
+    """Types of recommendations from Google Ads."""
+    CAMPAIGN_BUDGET = "CAMPAIGN_BUDGET"
+    KEYWORD = "KEYWORD"
+    TEXT_AD = "TEXT_AD"
+    TARGET_CPA_OPT_IN = "TARGET_CPA_OPT_IN"
+    MAXIMIZE_CONVERSIONS_OPT_IN = "MAXIMIZE_CONVERSIONS_OPT_IN"
+    ENHANCED_CPC_OPT_IN = "ENHANCED_CPC_OPT_IN"
+    SEARCH_PARTNERS_OPT_IN = "SEARCH_PARTNERS_OPT_IN"
+    MAXIMIZE_CLICKS_OPT_IN = "MAXIMIZE_CLICKS_OPT_IN"
+    OPTIMIZE_AD_ROTATION = "OPTIMIZE_AD_ROTATION"
+    KEYWORD_MATCH_TYPE = "KEYWORD_MATCH_TYPE"
+    MOVE_UNUSED_BUDGET = "MOVE_UNUSED_BUDGET"
+    RESPONSIVE_SEARCH_AD = "RESPONSIVE_SEARCH_AD"
+    USE_BROAD_MATCH_KEYWORD = "USE_BROAD_MATCH_KEYWORD"
+    RESPONSIVE_SEARCH_AD_ASSET = "RESPONSIVE_SEARCH_AD_ASSET"
+    RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH = "RESPONSIVE_SEARCH_AD_IMPROVE_AD_STRENGTH"
+    DISPLAY_EXPANSION_OPT_IN = "DISPLAY_EXPANSION_OPT_IN"
+    SITELINK_ASSET = "SITELINK_ASSET"
+    CALL_ASSET = "CALL_ASSET"
+    CALLOUT_ASSET = "CALLOUT_ASSET"
+
+
+class ListRecommendationsInput(BaseModel):
+    """Input for listing recommendations."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Filter by campaign ID (optional)")
+    recommendation_types: Optional[List[str]] = Field(default=None, description="Filter by recommendation types (optional)")
+    limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum recommendations to return")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class ApplyRecommendationInput(BaseModel):
+    """Input for applying a recommendation."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    recommendation_id: str = Field(..., description="Recommendation resource name or ID")
+
+
+class DismissRecommendationInput(BaseModel):
+    """Input for dismissing a recommendation."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    recommendation_id: str = Field(..., description="Recommendation resource name or ID")
+
+
+# ============================================================================
+# CONVERSION TRACKING INPUT MODELS
+# ============================================================================
+
+class ListConversionActionsInput(BaseModel):
+    """Input for listing conversion actions."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    include_disabled: bool = Field(default=False, description="Include disabled conversion actions")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class GetConversionStatsInput(BaseModel):
+    """Input for getting conversion statistics."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Filter by campaign ID (optional)")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for conversion data")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class GetCampaignConversionGoalsInput(BaseModel):
+    """Input for getting campaign conversion goals."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Filter by specific campaign ID (optional)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+# ============================================================================
+# GEOGRAPHIC TARGETING INPUT MODELS
+# ============================================================================
+
+class GeoTargetType(str, Enum):
+    """Type of geographic targeting."""
+    INCLUSION = "INCLUSION"
+    EXCLUSION = "EXCLUSION"
+
+
+class GetGeoTargetsInput(BaseModel):
+    """Input for getting geographic targets."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: str = Field(..., description="Campaign ID")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class SetGeoTargetsInput(BaseModel):
+    """Input for setting geographic targets."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: str = Field(..., description="Campaign ID")
+    location_ids: List[str] = Field(..., min_length=1, description="List of location IDs to target (Google Geo Target Constants)")
+    target_type: GeoTargetType = Field(default=GeoTargetType.INCLUSION, description="INCLUSION to target, EXCLUSION to exclude")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class RemoveGeoTargetsInput(BaseModel):
+    """Input for removing geographic targets."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: str = Field(..., description="Campaign ID")
+    criterion_ids: List[str] = Field(..., min_length=1, description="List of criterion IDs to remove")
+
+
+class SearchGeoTargetsInput(BaseModel):
+    """Input for searching geographic targets by name."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    query: str = Field(..., min_length=2, description="Search query (city, region, country name)")
+    country_code: Optional[str] = Field(default=None, max_length=2, description="Filter by country code (e.g., 'IT', 'US')")
+    limit: Optional[int] = Field(default=20, ge=1, le=100, description="Maximum results to return")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+# ============================================================================
 # SHARED UTILITY FUNCTIONS
 # ============================================================================
 
@@ -3105,6 +3354,2372 @@ async def google_ads_update_asset_group_assets(params: UpdateAssetGroupAssetsInp
                 "asset_group_id": params.asset_group_id,
                 "operations": results
             }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# NEGATIVE KEYWORDS TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_list_negative_keywords",
+    annotations={
+        "title": "List Negative Keywords",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_list_negative_keywords(params: ListNegativeKeywordsInput) -> str:
+    """
+    List negative keywords for campaigns or ad groups.
+
+    Negative keywords prevent your ads from showing for specific search queries,
+    helping you avoid wasted spend on irrelevant traffic.
+
+    Args:
+        params (ListNegativeKeywordsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign ID
+            - ad_group_id (Optional[str]): Filter by ad group ID
+            - limit (int): Maximum results to return (default: 100)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: List of negative keywords with details
+
+    Examples:
+        - "List all negative keywords for account 1234567890"
+        - "Show negative keywords for campaign 123456"
+        - "Get ad group level negatives for ad group 789"
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        results = {"campaign_level": [], "ad_group_level": []}
+
+        # Query campaign-level negative keywords
+        if not params.ad_group_id:  # Skip if filtering by ad group only
+            campaign_query = f"""
+                SELECT
+                    campaign_criterion.criterion_id,
+                    campaign_criterion.keyword.text,
+                    campaign_criterion.keyword.match_type,
+                    campaign_criterion.negative,
+                    campaign.id,
+                    campaign.name
+                FROM campaign_criterion
+                WHERE campaign_criterion.type = 'KEYWORD'
+                AND campaign_criterion.negative = TRUE
+                {"AND campaign.id = " + params.campaign_id if params.campaign_id else ""}
+                LIMIT {params.limit}
+            """
+            campaign_results = _execute_query(client, customer_id, campaign_query)
+
+            for row in campaign_results:
+                results["campaign_level"].append({
+                    "criterion_id": str(row.campaign_criterion.criterion_id),
+                    "keyword": row.campaign_criterion.keyword.text,
+                    "match_type": row.campaign_criterion.keyword.match_type.name,
+                    "campaign_id": str(row.campaign.id),
+                    "campaign_name": row.campaign.name
+                })
+
+        # Query ad group-level negative keywords
+        ad_group_query = f"""
+            SELECT
+                ad_group_criterion.criterion_id,
+                ad_group_criterion.keyword.text,
+                ad_group_criterion.keyword.match_type,
+                ad_group_criterion.negative,
+                ad_group.id,
+                ad_group.name,
+                campaign.id,
+                campaign.name
+            FROM ad_group_criterion
+            WHERE ad_group_criterion.type = 'KEYWORD'
+            AND ad_group_criterion.negative = TRUE
+            {"AND campaign.id = " + params.campaign_id if params.campaign_id else ""}
+            {"AND ad_group.id = " + params.ad_group_id if params.ad_group_id else ""}
+            LIMIT {params.limit}
+        """
+        ad_group_results = _execute_query(client, customer_id, ad_group_query)
+
+        for row in ad_group_results:
+            results["ad_group_level"].append({
+                "criterion_id": str(row.ad_group_criterion.criterion_id),
+                "keyword": row.ad_group_criterion.keyword.text,
+                "match_type": row.ad_group_criterion.keyword.match_type.name,
+                "ad_group_id": str(row.ad_group.id),
+                "ad_group_name": row.ad_group.name,
+                "campaign_id": str(row.campaign.id),
+                "campaign_name": row.campaign.name
+            })
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            total = len(results["campaign_level"]) + len(results["ad_group_level"])
+            lines = [f"# Negative Keywords\n", f"**Total**: {total} negative keywords found\n"]
+
+            if results["campaign_level"]:
+                lines.append(f"## Campaign-Level Negatives ({len(results['campaign_level'])})\n")
+                lines.append("| Keyword | Match Type | Campaign | Criterion ID |")
+                lines.append("|---------|------------|----------|--------------|")
+                for nk in results["campaign_level"]:
+                    lines.append(f"| {nk['keyword']} | {nk['match_type']} | {nk['campaign_name']} | {nk['criterion_id']} |")
+                lines.append("")
+
+            if results["ad_group_level"]:
+                lines.append(f"## Ad Group-Level Negatives ({len(results['ad_group_level'])})\n")
+                lines.append("| Keyword | Match Type | Ad Group | Campaign | Criterion ID |")
+                lines.append("|---------|------------|----------|----------|--------------|")
+                for nk in results["ad_group_level"]:
+                    lines.append(f"| {nk['keyword']} | {nk['match_type']} | {nk['ad_group_name']} | {nk['campaign_name']} | {nk['criterion_id']} |")
+                lines.append("")
+
+            if total == 0:
+                lines.append("No negative keywords found. Consider adding negative keywords to:\n")
+                lines.append("- Block irrelevant search queries")
+                lines.append("- Reduce wasted ad spend")
+                lines.append("- Improve campaign relevance")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "total": len(results["campaign_level"]) + len(results["ad_group_level"]),
+                "campaign_level": results["campaign_level"],
+                "ad_group_level": results["ad_group_level"]
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_add_negative_keywords",
+    annotations={
+        "title": "Add Negative Keywords",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def google_ads_add_negative_keywords(params: AddNegativeKeywordsInput) -> str:
+    """
+    Add negative keywords to a campaign or ad group.
+
+    Negative keywords prevent your ads from showing when someone searches for
+    those terms. Use this to block irrelevant traffic and save budget.
+
+    Args:
+        params (AddNegativeKeywordsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - keywords (List[str]): Keywords to add as negatives (1-200)
+            - level (NegativeKeywordLevel): CAMPAIGN or AD_GROUP
+            - campaign_id (str): Campaign ID (required for campaign level)
+            - ad_group_id (str): Ad group ID (required for ad group level)
+            - match_type (KeywordMatchType): EXACT, PHRASE, or BROAD (default: PHRASE)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success message with added keywords
+
+    Examples:
+        - "Add 'free', 'cheap', 'discount' as negative keywords to campaign 123"
+        - "Block 'jobs', 'careers', 'salary' at ad group level"
+        - "Add exact match negatives for competitor names"
+
+    Note:
+        - PHRASE match (default) blocks queries containing the phrase
+        - EXACT match only blocks exact query matches
+        - BROAD match blocks queries with all terms in any order
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Validate required IDs based on level
+        if params.level == NegativeKeywordLevel.CAMPAIGN:
+            if not params.campaign_id:
+                return "❌ Error: campaign_id is required when level is CAMPAIGN"
+        else:  # AD_GROUP
+            if not params.ad_group_id:
+                return "❌ Error: ad_group_id is required when level is AD_GROUP"
+
+        operations = []
+        match_type_enum = getattr(client.enums.KeywordMatchTypeEnum, params.match_type.value)
+
+        if params.level == NegativeKeywordLevel.CAMPAIGN:
+            campaign_criterion_service = client.get_service("CampaignCriterionService")
+
+            for keyword in params.keywords:
+                operation = client.get_type("CampaignCriterionOperation")
+                criterion = operation.create
+
+                criterion.campaign = f"customers/{customer_id}/campaigns/{params.campaign_id}"
+                criterion.negative = True
+                criterion.keyword.text = keyword
+                criterion.keyword.match_type = match_type_enum
+
+                operations.append(operation)
+
+            # Execute
+            response = campaign_criterion_service.mutate_campaign_criteria(
+                customer_id=customer_id,
+                operations=operations
+            )
+
+        else:  # AD_GROUP level
+            ad_group_criterion_service = client.get_service("AdGroupCriterionService")
+
+            for keyword in params.keywords:
+                operation = client.get_type("AdGroupCriterionOperation")
+                criterion = operation.create
+
+                criterion.ad_group = f"customers/{customer_id}/adGroups/{params.ad_group_id}"
+                criterion.negative = True
+                criterion.keyword.text = keyword
+                criterion.keyword.match_type = match_type_enum
+
+                operations.append(operation)
+
+            # Execute
+            response = ad_group_criterion_service.mutate_ad_group_criteria(
+                customer_id=customer_id,
+                operations=operations
+            )
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            level_name = "campaign" if params.level == NegativeKeywordLevel.CAMPAIGN else "ad group"
+            entity_id = params.campaign_id if params.level == NegativeKeywordLevel.CAMPAIGN else params.ad_group_id
+
+            lines = [
+                f"✅ **Added {len(params.keywords)} negative keywords successfully!**\n",
+                f"**Level**: {level_name.title()}",
+                f"**{level_name.title()} ID**: {entity_id}",
+                f"**Match Type**: {params.match_type.value}\n",
+                "### Keywords Added:",
+            ]
+
+            for kw in params.keywords:
+                lines.append(f"- {kw}")
+
+            lines.append("\n**Effect**: Ads will no longer show for searches containing these terms.")
+            lines.append("\n**Tip**: Use `google_ads_get_search_terms` to find more irrelevant queries to block.")
+
+            return "\n".join(lines)
+
+        else:  # JSON
+            return json.dumps({
+                "success": True,
+                "level": params.level.value,
+                "campaign_id": params.campaign_id,
+                "ad_group_id": params.ad_group_id,
+                "match_type": params.match_type.value,
+                "keywords_added": params.keywords,
+                "count": len(params.keywords),
+                "resource_names": [r.resource_name for r in response.results]
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_remove_negative_keywords",
+    annotations={
+        "title": "Remove Negative Keywords",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_remove_negative_keywords(params: RemoveNegativeKeywordsInput) -> str:
+    """
+    Remove negative keywords from a campaign or ad group.
+
+    Use this to unblock search terms that you previously blocked but now
+    want to show ads for.
+
+    Args:
+        params (RemoveNegativeKeywordsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - criterion_ids (List[str]): Criterion IDs to remove
+            - level (NegativeKeywordLevel): CAMPAIGN or AD_GROUP
+            - campaign_id (str): Campaign ID (required for campaign level)
+            - ad_group_id (str): Ad group ID (required for ad group level)
+
+    Returns:
+        str: Success confirmation
+
+    Examples:
+        - "Remove negative keyword with criterion ID 12345"
+        - "Unblock negative keywords 111, 222, 333 from campaign"
+
+    Note:
+        Get criterion IDs from `google_ads_list_negative_keywords`
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Validate required IDs
+        if params.level == NegativeKeywordLevel.CAMPAIGN:
+            if not params.campaign_id:
+                return "❌ Error: campaign_id is required when level is CAMPAIGN"
+
+            campaign_criterion_service = client.get_service("CampaignCriterionService")
+            operations = []
+
+            for criterion_id in params.criterion_ids:
+                operation = client.get_type("CampaignCriterionOperation")
+                operation.remove = campaign_criterion_service.campaign_criterion_path(
+                    customer_id, params.campaign_id, criterion_id
+                )
+                operations.append(operation)
+
+            response = campaign_criterion_service.mutate_campaign_criteria(
+                customer_id=customer_id,
+                operations=operations
+            )
+
+        else:  # AD_GROUP level
+            if not params.ad_group_id:
+                return "❌ Error: ad_group_id is required when level is AD_GROUP"
+
+            ad_group_criterion_service = client.get_service("AdGroupCriterionService")
+            operations = []
+
+            for criterion_id in params.criterion_ids:
+                operation = client.get_type("AdGroupCriterionOperation")
+                operation.remove = ad_group_criterion_service.ad_group_criterion_path(
+                    customer_id, params.ad_group_id, criterion_id
+                )
+                operations.append(operation)
+
+            response = ad_group_criterion_service.mutate_ad_group_criteria(
+                customer_id=customer_id,
+                operations=operations
+            )
+
+        level_name = "campaign" if params.level == NegativeKeywordLevel.CAMPAIGN else "ad group"
+
+        return f"""✅ **Removed {len(params.criterion_ids)} negative keyword(s) successfully!**
+
+**Level**: {level_name.title()}
+**Removed Criterion IDs**: {', '.join(params.criterion_ids)}
+
+Your ads may now show for searches that were previously blocked by these negatives.
+
+**Tip**: Monitor search terms report to see if this increases irrelevant traffic."""
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# BUDGET MANAGEMENT TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_update_campaign_budget",
+    annotations={
+        "title": "Update Campaign Budget",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_update_campaign_budget(params: UpdateCampaignBudgetInput) -> str:
+    """
+    Update the daily budget for a campaign.
+
+    Changes the campaign's daily budget. The change takes effect immediately
+    and affects how much can be spent per day.
+
+    Args:
+        params (UpdateCampaignBudgetInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (str): Campaign ID
+            - new_budget_micros (int): New daily budget in micros (1000000 = $1)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success message with old and new budget
+
+    Examples:
+        - "Set campaign 123456 budget to $50/day" (new_budget_micros=50000000)
+        - "Increase budget to $100 daily" (new_budget_micros=100000000)
+        - "Reduce budget to $25/day" (new_budget_micros=25000000)
+
+    Note:
+        - Budget is in micros: $1 = 1,000,000 micros
+        - Minimum budget: $1 (1,000,000 micros)
+        - Change is immediate but may take time to reflect in reporting
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # First, get the current campaign budget resource name
+        query = f"""
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.campaign_budget,
+                campaign_budget.amount_micros,
+                campaign_budget.id
+            FROM campaign
+            WHERE campaign.id = {params.campaign_id}
+        """
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return f"❌ Error: Campaign {params.campaign_id} not found"
+
+        row = results[0]
+        old_budget_micros = row.campaign_budget.amount_micros
+        budget_resource_name = row.campaign.campaign_budget
+        campaign_name = row.campaign.name
+
+        # Update the budget
+        campaign_budget_service = client.get_service("CampaignBudgetService")
+
+        budget_operation = client.get_type("CampaignBudgetOperation")
+        budget = budget_operation.update
+
+        budget.resource_name = budget_resource_name
+        budget.amount_micros = params.new_budget_micros
+
+        # Set field mask
+        budget_operation.update_mask.paths.append("amount_micros")
+
+        # Execute update
+        response = campaign_budget_service.mutate_campaign_budgets(
+            customer_id=customer_id,
+            operations=[budget_operation]
+        )
+
+        # Format response
+        old_amount = old_budget_micros / 1_000_000
+        new_amount = params.new_budget_micros / 1_000_000
+        change = new_amount - old_amount
+        change_pct = ((new_amount / old_amount) - 1) * 100 if old_amount > 0 else 0
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            change_icon = "📈" if change > 0 else "📉" if change < 0 else "➡️"
+
+            return f"""✅ **Campaign budget updated successfully!**
+
+**Campaign**: {campaign_name} ({params.campaign_id})
+
+| | Amount |
+|---|--------|
+| **Previous Budget** | ${old_amount:,.2f}/day |
+| **New Budget** | ${new_amount:,.2f}/day |
+| **Change** | {change_icon} ${change:+,.2f} ({change_pct:+.1f}%) |
+
+**Note**: The new budget takes effect immediately. Google may spend up to 2x the daily budget on high-traffic days, but won't exceed monthly budget."""
+
+        else:  # JSON
+            return json.dumps({
+                "success": True,
+                "campaign_id": params.campaign_id,
+                "campaign_name": campaign_name,
+                "old_budget_micros": old_budget_micros,
+                "new_budget_micros": params.new_budget_micros,
+                "old_budget_dollars": old_amount,
+                "new_budget_dollars": new_amount,
+                "change_dollars": change,
+                "change_percent": change_pct
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_get_budget_utilization",
+    annotations={
+        "title": "Get Budget Utilization",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_budget_utilization(params: GetBudgetUtilizationInput) -> str:
+    """
+    Get budget utilization for campaigns.
+
+    Shows how much of the daily budget is being spent, helping identify
+    campaigns that are underspending (opportunity to increase) or at
+    budget limits (may be missing traffic).
+
+    Args:
+        params (GetBudgetUtilizationInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_ids (Optional[List[str]]): Specific campaigns (default: all active)
+            - date_range (DatePreset): Date range for spend data (default: LAST_7_DAYS)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Budget utilization report with daily averages
+
+    Examples:
+        - "Show budget utilization for all campaigns"
+        - "How much am I spending vs my budget?"
+        - "Which campaigns are underspending?"
+
+    Note:
+        - Utilization > 95%: Campaign may be limited by budget
+        - Utilization < 50%: Room to increase spend
+        - Google can spend up to 2x daily budget on any given day
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Build query
+        date_filter = _format_date_range(params.date_range)
+        campaign_filter = ""
+        if params.campaign_ids:
+            ids = ", ".join(params.campaign_ids)
+            campaign_filter = f"AND campaign.id IN ({ids})"
+
+        query = f"""
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.status,
+                campaign_budget.amount_micros,
+                campaign_budget.type,
+                metrics.cost_micros
+            FROM campaign
+            WHERE campaign.status != 'REMOVED'
+            AND {date_filter}
+            {campaign_filter}
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return "No campaign data found for the specified criteria."
+
+        # Aggregate by campaign (multiple rows per day)
+        campaign_data = {}
+        for row in results:
+            cid = str(row.campaign.id)
+            if cid not in campaign_data:
+                campaign_data[cid] = {
+                    "name": row.campaign.name,
+                    "status": row.campaign.status.name,
+                    "daily_budget_micros": row.campaign_budget.amount_micros,
+                    "budget_type": row.campaign_budget.type.name,
+                    "total_cost_micros": 0,
+                    "days": 0
+                }
+            campaign_data[cid]["total_cost_micros"] += row.metrics.cost_micros
+            campaign_data[cid]["days"] += 1
+
+        # Calculate utilization
+        utilization_data = []
+        for cid, data in campaign_data.items():
+            days = max(data["days"], 1)
+            avg_daily_spend = data["total_cost_micros"] / days
+            daily_budget = data["daily_budget_micros"]
+
+            if daily_budget > 0:
+                utilization = (avg_daily_spend / daily_budget) * 100
+            else:
+                utilization = 0
+
+            utilization_data.append({
+                "campaign_id": cid,
+                "name": data["name"],
+                "status": data["status"],
+                "daily_budget": daily_budget / 1_000_000,
+                "avg_daily_spend": avg_daily_spend / 1_000_000,
+                "total_spend": data["total_cost_micros"] / 1_000_000,
+                "utilization": utilization,
+                "days": days
+            })
+
+        # Sort by utilization descending
+        utilization_data.sort(key=lambda x: x["utilization"], reverse=True)
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                "# Budget Utilization Report\n",
+                f"**Date Range**: {params.date_range.value.replace('_', ' ').title()}",
+                f"**Campaigns Analyzed**: {len(utilization_data)}\n"
+            ]
+
+            # Summary statistics
+            total_budget = sum(c["daily_budget"] for c in utilization_data)
+            total_spend = sum(c["avg_daily_spend"] for c in utilization_data)
+            avg_utilization = (total_spend / total_budget * 100) if total_budget > 0 else 0
+
+            lines.append("## Summary")
+            lines.append(f"- **Total Daily Budget**: ${total_budget:,.2f}")
+            lines.append(f"- **Avg Daily Spend**: ${total_spend:,.2f}")
+            lines.append(f"- **Overall Utilization**: {avg_utilization:.1f}%\n")
+
+            # Campaigns at risk (>95% utilization)
+            high_util = [c for c in utilization_data if c["utilization"] >= 95]
+            if high_util:
+                lines.append("## ⚠️ Budget-Limited Campaigns")
+                lines.append("These campaigns may be missing traffic due to budget constraints:\n")
+                for c in high_util:
+                    lines.append(f"- **{c['name']}**: {c['utilization']:.1f}% (${c['daily_budget']:.2f}/day)")
+                lines.append("")
+
+            # Underspending campaigns (<50% utilization)
+            low_util = [c for c in utilization_data if c["utilization"] < 50 and c["status"] == "ENABLED"]
+            if low_util:
+                lines.append("## 📉 Underspending Campaigns")
+                lines.append("These campaigns have room to spend more:\n")
+                for c in low_util:
+                    lines.append(f"- **{c['name']}**: {c['utilization']:.1f}% (${c['avg_daily_spend']:.2f} of ${c['daily_budget']:.2f}/day)")
+                lines.append("")
+
+            # Full table
+            lines.append("## All Campaigns\n")
+            lines.append("| Campaign | Status | Daily Budget | Avg Spend | Utilization |")
+            lines.append("|----------|--------|--------------|-----------|-------------|")
+            for c in utilization_data:
+                util_icon = "🔴" if c["utilization"] >= 95 else "🟡" if c["utilization"] >= 70 else "🟢"
+                lines.append(f"| {c['name'][:30]} | {c['status']} | ${c['daily_budget']:,.2f} | ${c['avg_daily_spend']:,.2f} | {util_icon} {c['utilization']:.1f}% |")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "date_range": params.date_range.value,
+                "total_campaigns": len(utilization_data),
+                "summary": {
+                    "total_daily_budget": sum(c["daily_budget"] for c in utilization_data),
+                    "total_avg_daily_spend": sum(c["avg_daily_spend"] for c in utilization_data),
+                    "overall_utilization": avg_utilization
+                },
+                "campaigns": utilization_data
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# QUALITY SCORE & DIAGNOSTICS TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_get_keyword_quality_scores",
+    annotations={
+        "title": "Get Keyword Quality Scores",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_keyword_quality_scores(params: GetKeywordQualityScoresInput) -> str:
+    """
+    Get Quality Score and diagnostic metrics for keywords.
+
+    Quality Score affects your ad rank and cost-per-click. This tool shows
+    QS components to help you identify and fix underperforming keywords.
+
+    Args:
+        params (GetKeywordQualityScoresInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign
+            - ad_group_id (Optional[str]): Filter by ad group
+            - min_impressions (int): Minimum impressions to include (default: 0)
+            - limit (int): Maximum keywords to return (default: 100)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Keywords with Quality Score breakdown
+
+    Examples:
+        - "Show quality scores for all keywords"
+        - "Get QS breakdown for campaign 123456"
+        - "Find keywords with low quality score"
+
+    Note:
+        Quality Score (1-10) components:
+        - Expected CTR: Likelihood of your ad being clicked
+        - Ad Relevance: How closely your ad matches search intent
+        - Landing Page Experience: How relevant and useful your page is
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Build filters
+        filters = ["ad_group_criterion.status != 'REMOVED'"]
+        if params.campaign_id:
+            filters.append(f"campaign.id = {params.campaign_id}")
+        if params.ad_group_id:
+            filters.append(f"ad_group.id = {params.ad_group_id}")
+        if params.min_impressions > 0:
+            filters.append(f"metrics.impressions >= {params.min_impressions}")
+
+        filter_clause = " AND ".join(filters)
+
+        query = f"""
+            SELECT
+                ad_group_criterion.criterion_id,
+                ad_group_criterion.keyword.text,
+                ad_group_criterion.keyword.match_type,
+                ad_group_criterion.quality_info.quality_score,
+                ad_group_criterion.quality_info.creative_quality_score,
+                ad_group_criterion.quality_info.post_click_quality_score,
+                ad_group_criterion.quality_info.search_predicted_ctr,
+                ad_group.id,
+                ad_group.name,
+                campaign.id,
+                campaign.name,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.cost_micros
+            FROM keyword_view
+            WHERE {filter_clause}
+            ORDER BY ad_group_criterion.quality_info.quality_score ASC
+            LIMIT {params.limit}
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return "No keyword data found. Keywords need impressions for Quality Score to be calculated."
+
+        keywords = []
+        for row in results:
+            qi = row.ad_group_criterion.quality_info
+
+            # Map enum values to readable names
+            def qs_label(val):
+                mapping = {0: "UNSPECIFIED", 1: "UNKNOWN", 2: "BELOW_AVERAGE", 3: "AVERAGE", 4: "ABOVE_AVERAGE"}
+                return mapping.get(val, str(val))
+
+            keywords.append({
+                "keyword": row.ad_group_criterion.keyword.text,
+                "match_type": row.ad_group_criterion.keyword.match_type.name,
+                "quality_score": qi.quality_score if qi.quality_score else "N/A",
+                "expected_ctr": qs_label(qi.search_predicted_ctr),
+                "ad_relevance": qs_label(qi.creative_quality_score),
+                "landing_page": qs_label(qi.post_click_quality_score),
+                "impressions": row.metrics.impressions,
+                "clicks": row.metrics.clicks,
+                "cost": row.metrics.cost_micros / 1_000_000,
+                "ad_group": row.ad_group.name,
+                "campaign": row.campaign.name,
+                "criterion_id": str(row.ad_group_criterion.criterion_id)
+            })
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                "# Keyword Quality Scores\n",
+                f"**Keywords Analyzed**: {len(keywords)}\n"
+            ]
+
+            # Summary by QS
+            qs_distribution = {}
+            for kw in keywords:
+                qs = kw["quality_score"]
+                if qs != "N/A":
+                    qs_distribution[qs] = qs_distribution.get(qs, 0) + 1
+
+            if qs_distribution:
+                lines.append("## Quality Score Distribution")
+                for qs in sorted(qs_distribution.keys()):
+                    count = qs_distribution[qs]
+                    bar = "█" * min(count, 20)
+                    emoji = "🟢" if qs >= 7 else "🟡" if qs >= 5 else "🔴"
+                    lines.append(f"- {emoji} **QS {qs}**: {count} keywords {bar}")
+                lines.append("")
+
+            # Low QS keywords needing attention
+            low_qs = [kw for kw in keywords if isinstance(kw["quality_score"], int) and kw["quality_score"] < 5]
+            if low_qs:
+                lines.append("## ⚠️ Keywords Needing Attention (QS < 5)\n")
+                lines.append("| Keyword | QS | CTR | Ad Rel | LP | Impressions |")
+                lines.append("|---------|-----|-----|--------|-----|------------|")
+                for kw in low_qs[:20]:
+                    lines.append(
+                        f"| {kw['keyword'][:25]} | {kw['quality_score']} | "
+                        f"{kw['expected_ctr'][:3]} | {kw['ad_relevance'][:3]} | "
+                        f"{kw['landing_page'][:3]} | {kw['impressions']:,} |"
+                    )
+                lines.append("")
+
+            # Full table
+            lines.append("## All Keywords\n")
+            lines.append("| Keyword | Match | QS | CTR | Ad Rel | LP | Impr | Cost |")
+            lines.append("|---------|-------|-----|-----|--------|-----|------|------|")
+            for kw in keywords[:50]:
+                lines.append(
+                    f"| {kw['keyword'][:20]} | {kw['match_type'][:5]} | {kw['quality_score']} | "
+                    f"{kw['expected_ctr'][:3]} | {kw['ad_relevance'][:3]} | {kw['landing_page'][:3]} | "
+                    f"{kw['impressions']:,} | ${kw['cost']:.2f} |"
+                )
+
+            lines.append("\n### Legend")
+            lines.append("- **CTR**: Expected Click-Through Rate")
+            lines.append("- **Ad Rel**: Ad Relevance")
+            lines.append("- **LP**: Landing Page Experience")
+            lines.append("- Values: ABV (Above Average), AVG (Average), BEL (Below Average)")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "total": len(keywords),
+                "keywords": keywords
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_get_ad_strength",
+    annotations={
+        "title": "Get Ad Strength for RSA",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_ad_strength(params: GetAdStrengthInput) -> str:
+    """
+    Get Ad Strength ratings for Responsive Search Ads.
+
+    Ad Strength indicates how well your ad is optimized. Higher strength
+    typically leads to better performance.
+
+    Args:
+        params (GetAdStrengthInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign
+            - ad_group_id (Optional[str]): Filter by ad group
+            - limit (int): Maximum ads to return (default: 50)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: RSA ads with Ad Strength ratings
+
+    Examples:
+        - "Show ad strength for all my RSAs"
+        - "Find ads with poor ad strength"
+        - "Get ad strength report for campaign 123"
+
+    Note:
+        Ad Strength levels:
+        - EXCELLENT: Highly optimized, best performance potential
+        - GOOD: Well optimized
+        - AVERAGE: Room for improvement
+        - POOR: Needs significant improvement
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Build filters
+        filters = ["ad_group_ad.ad.type = 'RESPONSIVE_SEARCH_AD'", "ad_group_ad.status != 'REMOVED'"]
+        if params.campaign_id:
+            filters.append(f"campaign.id = {params.campaign_id}")
+        if params.ad_group_id:
+            filters.append(f"ad_group.id = {params.ad_group_id}")
+
+        filter_clause = " AND ".join(filters)
+
+        query = f"""
+            SELECT
+                ad_group_ad.ad.id,
+                ad_group_ad.ad.responsive_search_ad.headlines,
+                ad_group_ad.ad.responsive_search_ad.descriptions,
+                ad_group_ad.ad.final_urls,
+                ad_group_ad.ad_strength,
+                ad_group_ad.status,
+                ad_group.id,
+                ad_group.name,
+                campaign.id,
+                campaign.name,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.ctr
+            FROM ad_group_ad
+            WHERE {filter_clause}
+            ORDER BY ad_group_ad.ad_strength ASC
+            LIMIT {params.limit}
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return "No Responsive Search Ads found."
+
+        ads = []
+        for row in results:
+            rsa = row.ad_group_ad.ad.responsive_search_ad
+            headlines = [h.text for h in rsa.headlines] if rsa.headlines else []
+            descriptions = [d.text for d in rsa.descriptions] if rsa.descriptions else []
+
+            ads.append({
+                "ad_id": str(row.ad_group_ad.ad.id),
+                "ad_strength": row.ad_group_ad.ad_strength.name,
+                "status": row.ad_group_ad.status.name,
+                "headlines_count": len(headlines),
+                "descriptions_count": len(descriptions),
+                "headlines": headlines[:5],  # First 5 for preview
+                "descriptions": descriptions[:2],  # First 2 for preview
+                "final_url": row.ad_group_ad.ad.final_urls[0] if row.ad_group_ad.ad.final_urls else "",
+                "impressions": row.metrics.impressions,
+                "clicks": row.metrics.clicks,
+                "ctr": row.metrics.ctr * 100 if row.metrics.ctr else 0,
+                "ad_group": row.ad_group.name,
+                "campaign": row.campaign.name
+            })
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                "# Ad Strength Report\n",
+                f"**Responsive Search Ads Analyzed**: {len(ads)}\n"
+            ]
+
+            # Distribution
+            strength_dist = {}
+            for ad in ads:
+                strength_dist[ad["ad_strength"]] = strength_dist.get(ad["ad_strength"], 0) + 1
+
+            lines.append("## Ad Strength Distribution")
+            strength_order = ["EXCELLENT", "GOOD", "AVERAGE", "POOR", "UNSPECIFIED"]
+            strength_emoji = {"EXCELLENT": "🟢", "GOOD": "🟡", "AVERAGE": "🟠", "POOR": "🔴", "UNSPECIFIED": "⚪"}
+
+            for strength in strength_order:
+                if strength in strength_dist:
+                    emoji = strength_emoji.get(strength, "⚪")
+                    lines.append(f"- {emoji} **{strength}**: {strength_dist[strength]} ads")
+            lines.append("")
+
+            # Ads needing improvement
+            poor_ads = [ad for ad in ads if ad["ad_strength"] in ["POOR", "AVERAGE"]]
+            if poor_ads:
+                lines.append("## ⚠️ Ads Needing Improvement\n")
+                for ad in poor_ads[:10]:
+                    lines.append(f"### Ad {ad['ad_id']} - {ad['ad_strength']}")
+                    lines.append(f"- **Campaign**: {ad['campaign']}")
+                    lines.append(f"- **Ad Group**: {ad['ad_group']}")
+                    lines.append(f"- **Headlines**: {ad['headlines_count']} (need 8-15 for best results)")
+                    lines.append(f"- **Descriptions**: {ad['descriptions_count']} (need 4 for best results)")
+                    lines.append(f"- **Performance**: {ad['impressions']:,} impr, {ad['ctr']:.2f}% CTR")
+                    lines.append("")
+
+            # Recommendations
+            lines.append("## Recommendations to Improve Ad Strength\n")
+            lines.append("1. **Add more headlines**: Aim for 10-15 unique headlines")
+            lines.append("2. **Add more descriptions**: Use all 4 description slots")
+            lines.append("3. **Include keywords**: Add popular keywords in headlines")
+            lines.append("4. **Vary messaging**: Different selling points and CTAs")
+            lines.append("5. **Pin strategically**: Only pin if absolutely necessary")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "total": len(ads),
+                "distribution": strength_dist,
+                "ads": ads
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_get_policy_issues",
+    annotations={
+        "title": "Get Policy Issues (Disapproved Ads)",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_policy_issues(params: GetPolicyIssuesInput) -> str:
+    """
+    Get policy issues for ads and assets (disapproved or limited).
+
+    Identifies ads and assets that have been disapproved or limited by
+    Google's advertising policies, along with the specific policy violations.
+
+    Args:
+        params (GetPolicyIssuesInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign
+            - include_assets (bool): Include asset policy issues (default: True)
+            - include_ads (bool): Include ad policy issues (default: True)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Policy issues with details and remediation guidance
+
+    Examples:
+        - "Show all disapproved ads in my account"
+        - "What policy issues do I have?"
+        - "Find ads with limited serving"
+
+    Note:
+        Common policy issues:
+        - Trademark violations
+        - Misleading content
+        - Adult content
+        - Healthcare/pharma restrictions
+        - Gambling restrictions
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        issues = {"ads": [], "assets": []}
+
+        # Get ad policy issues
+        if params.include_ads:
+            campaign_filter = f"AND campaign.id = {params.campaign_id}" if params.campaign_id else ""
+
+            ad_query = f"""
+                SELECT
+                    ad_group_ad.ad.id,
+                    ad_group_ad.ad.type,
+                    ad_group_ad.status,
+                    ad_group_ad.policy_summary.approval_status,
+                    ad_group_ad.policy_summary.policy_topic_entries,
+                    ad_group_ad.policy_summary.review_status,
+                    ad_group.id,
+                    ad_group.name,
+                    campaign.id,
+                    campaign.name
+                FROM ad_group_ad
+                WHERE ad_group_ad.policy_summary.approval_status IN ('DISAPPROVED', 'APPROVED_LIMITED', 'AREA_OF_INTEREST_ONLY')
+                {campaign_filter}
+            """
+
+            ad_results = _execute_query(client, customer_id, ad_query)
+
+            for row in ad_results:
+                policy_topics = []
+                if row.ad_group_ad.policy_summary.policy_topic_entries:
+                    for entry in row.ad_group_ad.policy_summary.policy_topic_entries:
+                        policy_topics.append({
+                            "topic": entry.topic if hasattr(entry, 'topic') else "Unknown",
+                            "type": entry.type_.name if hasattr(entry, 'type_') else "Unknown"
+                        })
+
+                issues["ads"].append({
+                    "ad_id": str(row.ad_group_ad.ad.id),
+                    "ad_type": row.ad_group_ad.ad.type_.name,
+                    "status": row.ad_group_ad.status.name,
+                    "approval_status": row.ad_group_ad.policy_summary.approval_status.name,
+                    "review_status": row.ad_group_ad.policy_summary.review_status.name,
+                    "policy_topics": policy_topics,
+                    "ad_group": row.ad_group.name,
+                    "ad_group_id": str(row.ad_group.id),
+                    "campaign": row.campaign.name,
+                    "campaign_id": str(row.campaign.id)
+                })
+
+        # Get asset policy issues (for Performance Max)
+        if params.include_assets:
+            campaign_filter = f"AND campaign.id = {params.campaign_id}" if params.campaign_id else ""
+
+            asset_query = f"""
+                SELECT
+                    asset.id,
+                    asset.type,
+                    asset.name,
+                    asset.text_asset.text,
+                    asset.policy_summary.approval_status,
+                    asset.policy_summary.policy_topic_entries,
+                    asset.policy_summary.review_status
+                FROM asset
+                WHERE asset.policy_summary.approval_status IN ('DISAPPROVED', 'APPROVED_LIMITED', 'AREA_OF_INTEREST_ONLY')
+            """
+
+            try:
+                asset_results = _execute_query(client, customer_id, asset_query)
+
+                for row in asset_results:
+                    policy_topics = []
+                    if row.asset.policy_summary.policy_topic_entries:
+                        for entry in row.asset.policy_summary.policy_topic_entries:
+                            policy_topics.append({
+                                "topic": entry.topic if hasattr(entry, 'topic') else "Unknown",
+                                "type": entry.type_.name if hasattr(entry, 'type_') else "Unknown"
+                            })
+
+                    text_content = ""
+                    if row.asset.type_.name == "TEXT" and row.asset.text_asset:
+                        text_content = row.asset.text_asset.text
+
+                    issues["assets"].append({
+                        "asset_id": str(row.asset.id),
+                        "asset_type": row.asset.type_.name,
+                        "name": row.asset.name,
+                        "content": text_content,
+                        "approval_status": row.asset.policy_summary.approval_status.name,
+                        "review_status": row.asset.policy_summary.review_status.name,
+                        "policy_topics": policy_topics
+                    })
+            except Exception:
+                # Asset query might fail if no PMax campaigns
+                pass
+
+        total_issues = len(issues["ads"]) + len(issues["assets"])
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            if total_issues == 0:
+                return """✅ **No Policy Issues Found!**
+
+All your ads and assets are approved and serving normally.
+
+**Tip**: Regularly check this report after making changes to catch issues early."""
+
+            lines = [
+                "# Policy Issues Report\n",
+                f"**Total Issues**: {total_issues}\n"
+            ]
+
+            # Ad issues
+            if issues["ads"]:
+                lines.append(f"## ⚠️ Ad Policy Issues ({len(issues['ads'])})\n")
+
+                # Group by approval status
+                disapproved = [a for a in issues["ads"] if a["approval_status"] == "DISAPPROVED"]
+                limited = [a for a in issues["ads"] if a["approval_status"] != "DISAPPROVED"]
+
+                if disapproved:
+                    lines.append("### 🔴 Disapproved Ads")
+                    for ad in disapproved:
+                        lines.append(f"\n**Ad {ad['ad_id']}** ({ad['ad_type']})")
+                        lines.append(f"- Campaign: {ad['campaign']}")
+                        lines.append(f"- Ad Group: {ad['ad_group']}")
+                        if ad["policy_topics"]:
+                            lines.append(f"- Policy violations:")
+                            for topic in ad["policy_topics"]:
+                                lines.append(f"  - {topic['topic']} ({topic['type']})")
+                    lines.append("")
+
+                if limited:
+                    lines.append("### 🟡 Limited Ads")
+                    for ad in limited:
+                        lines.append(f"\n**Ad {ad['ad_id']}** - {ad['approval_status']}")
+                        lines.append(f"- Campaign: {ad['campaign']}")
+                        if ad["policy_topics"]:
+                            for topic in ad["policy_topics"]:
+                                lines.append(f"  - {topic['topic']}")
+                    lines.append("")
+
+            # Asset issues
+            if issues["assets"]:
+                lines.append(f"## ⚠️ Asset Policy Issues ({len(issues['assets'])})\n")
+
+                for asset in issues["assets"]:
+                    status_icon = "🔴" if asset["approval_status"] == "DISAPPROVED" else "🟡"
+                    lines.append(f"{status_icon} **Asset {asset['asset_id']}** ({asset['asset_type']})")
+                    if asset["content"]:
+                        lines.append(f"- Content: \"{asset['content']}\"")
+                    lines.append(f"- Status: {asset['approval_status']}")
+                    if asset["policy_topics"]:
+                        for topic in asset["policy_topics"]:
+                            lines.append(f"- Violation: {topic['topic']}")
+                    lines.append("")
+
+            # Recommendations
+            lines.append("## How to Fix Policy Issues\n")
+            lines.append("1. **Review Google Ads policies**: https://support.google.com/adspolicy/")
+            lines.append("2. **Edit the ad/asset**: Remove violating content")
+            lines.append("3. **Request re-review**: After fixing, ads are automatically re-reviewed")
+            lines.append("4. **Appeal if needed**: Use the Google Ads appeal process for incorrect disapprovals")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "total_issues": total_issues,
+                "ads": issues["ads"],
+                "assets": issues["assets"]
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# RECOMMENDATIONS TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_list_recommendations",
+    annotations={
+        "title": "List Recommendations",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_list_recommendations(params: ListRecommendationsInput) -> str:
+    """
+    List optimization recommendations from Google Ads.
+
+    Google Ads analyzes your account and provides actionable recommendations
+    to improve performance, including budget suggestions, keyword ideas,
+    bidding strategy changes, and ad improvements.
+
+    Args:
+        params (ListRecommendationsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign
+            - recommendation_types (Optional[List[str]]): Filter by types
+            - limit (int): Maximum recommendations (default: 50)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: List of recommendations with impact estimates
+
+    Examples:
+        - "Show me all recommendations for my account"
+        - "What optimization suggestions does Google have?"
+        - "List budget recommendations for campaign 123"
+
+    Note:
+        Common recommendation types:
+        - CAMPAIGN_BUDGET: Increase budget to capture more traffic
+        - KEYWORD: Add new keywords
+        - RESPONSIVE_SEARCH_AD: Improve ad assets
+        - TARGET_CPA_OPT_IN: Switch to automated bidding
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Build filters
+        filters = ["recommendation.dismissed = FALSE"]
+        if params.campaign_id:
+            filters.append(f"recommendation.campaign = 'customers/{customer_id}/campaigns/{params.campaign_id}'")
+        if params.recommendation_types:
+            types_str = ", ".join([f"'{t}'" for t in params.recommendation_types])
+            filters.append(f"recommendation.type IN ({types_str})")
+
+        filter_clause = " AND ".join(filters)
+
+        query = f"""
+            SELECT
+                recommendation.resource_name,
+                recommendation.type,
+                recommendation.impact,
+                recommendation.campaign,
+                recommendation.campaign_budget_recommendation,
+                recommendation.keyword_recommendation,
+                recommendation.text_ad_recommendation,
+                recommendation.responsive_search_ad_recommendation
+            FROM recommendation
+            WHERE {filter_clause}
+            LIMIT {params.limit}
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return """✅ **No pending recommendations found!**
+
+Your account appears to be well-optimized, or all recommendations have been applied/dismissed.
+
+**Tip**: Check back regularly as Google generates new recommendations based on performance data."""
+
+        recommendations = []
+        for row in results:
+            rec = row.recommendation
+            rec_type = rec.type_.name if hasattr(rec.type_, 'name') else str(rec.type_)
+
+            # Extract impact metrics
+            impact_data = {}
+            if rec.impact:
+                impact = rec.impact.base_metrics
+                if hasattr(impact, 'impressions'):
+                    impact_data["impressions"] = impact.impressions
+                if hasattr(impact, 'clicks'):
+                    impact_data["clicks"] = impact.clicks
+                if hasattr(impact, 'cost_micros'):
+                    impact_data["cost"] = impact.cost_micros / 1_000_000
+                if hasattr(impact, 'conversions'):
+                    impact_data["conversions"] = impact.conversions
+
+            # Extract recommendation details based on type
+            details = {}
+            if rec_type == "CAMPAIGN_BUDGET" and rec.campaign_budget_recommendation:
+                budget_rec = rec.campaign_budget_recommendation
+                if hasattr(budget_rec, 'recommended_budget_amount_micros'):
+                    details["recommended_budget"] = budget_rec.recommended_budget_amount_micros / 1_000_000
+                if hasattr(budget_rec, 'current_budget_amount_micros'):
+                    details["current_budget"] = budget_rec.current_budget_amount_micros / 1_000_000
+
+            elif rec_type == "KEYWORD" and rec.keyword_recommendation:
+                kw_rec = rec.keyword_recommendation
+                if hasattr(kw_rec, 'keyword'):
+                    details["keyword"] = kw_rec.keyword.text if hasattr(kw_rec.keyword, 'text') else str(kw_rec.keyword)
+                    details["match_type"] = kw_rec.keyword.match_type.name if hasattr(kw_rec.keyword, 'match_type') else "BROAD"
+
+            recommendations.append({
+                "resource_name": rec.resource_name,
+                "type": rec_type,
+                "campaign": rec.campaign if rec.campaign else "N/A",
+                "impact": impact_data,
+                "details": details
+            })
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                "# Google Ads Recommendations\n",
+                f"**Total Recommendations**: {len(recommendations)}\n"
+            ]
+
+            # Group by type
+            by_type = {}
+            for rec in recommendations:
+                rec_type = rec["type"]
+                if rec_type not in by_type:
+                    by_type[rec_type] = []
+                by_type[rec_type].append(rec)
+
+            # Type icons and descriptions
+            type_info = {
+                "CAMPAIGN_BUDGET": ("💰", "Budget Recommendations"),
+                "KEYWORD": ("🔑", "Keyword Suggestions"),
+                "RESPONSIVE_SEARCH_AD": ("📝", "Ad Improvement"),
+                "TARGET_CPA_OPT_IN": ("🎯", "Bidding Strategy"),
+                "MAXIMIZE_CONVERSIONS_OPT_IN": ("📈", "Bidding Strategy"),
+                "SITELINK_ASSET": ("🔗", "Sitelink Suggestions"),
+                "CALLOUT_ASSET": ("📢", "Callout Suggestions"),
+            }
+
+            for rec_type, recs in by_type.items():
+                icon, desc = type_info.get(rec_type, ("💡", rec_type.replace("_", " ").title()))
+                lines.append(f"## {icon} {desc} ({len(recs)})\n")
+
+                for rec in recs[:10]:  # Limit per type
+                    lines.append(f"### Recommendation")
+                    lines.append(f"- **Type**: {rec['type']}")
+                    lines.append(f"- **ID**: `{rec['resource_name'].split('/')[-1]}`")
+
+                    if rec["details"]:
+                        for key, value in rec["details"].items():
+                            if "budget" in key:
+                                lines.append(f"- **{key.replace('_', ' ').title()}**: ${value:,.2f}")
+                            else:
+                                lines.append(f"- **{key.replace('_', ' ').title()}**: {value}")
+
+                    if rec["impact"]:
+                        lines.append("- **Estimated Impact**:")
+                        for metric, value in rec["impact"].items():
+                            if metric == "cost":
+                                lines.append(f"  - {metric.title()}: ${value:,.2f}")
+                            else:
+                                lines.append(f"  - {metric.title()}: +{value:,.0f}")
+                    lines.append("")
+
+            lines.append("## How to Apply Recommendations\n")
+            lines.append("Use `google_ads_apply_recommendation` with the recommendation ID to apply.")
+            lines.append("Use `google_ads_dismiss_recommendation` to dismiss if not relevant.")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "total": len(recommendations),
+                "recommendations": recommendations
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_apply_recommendation",
+    annotations={
+        "title": "Apply Recommendation",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def google_ads_apply_recommendation(params: ApplyRecommendationInput) -> str:
+    """
+    Apply a Google Ads recommendation.
+
+    Applies the suggested change from a recommendation. This will modify
+    your account according to Google's suggestion.
+
+    Args:
+        params (ApplyRecommendationInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - recommendation_id (str): Recommendation resource name or ID
+
+    Returns:
+        str: Success confirmation
+
+    Examples:
+        - "Apply recommendation abc123"
+        - "Accept the budget recommendation"
+
+    Warning:
+        Applying recommendations will make changes to your account.
+        Review the recommendation details before applying.
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        recommendation_service = client.get_service("RecommendationService")
+
+        # Build resource name if only ID provided
+        if params.recommendation_id.startswith("customers/"):
+            resource_name = params.recommendation_id
+        else:
+            resource_name = f"customers/{customer_id}/recommendations/{params.recommendation_id}"
+
+        # Create apply operation
+        operation = client.get_type("ApplyRecommendationOperation")
+        operation.resource_name = resource_name
+
+        # Execute
+        response = recommendation_service.apply_recommendation(
+            customer_id=customer_id,
+            operations=[operation]
+        )
+
+        return f"""✅ **Recommendation applied successfully!**
+
+**Recommendation ID**: {params.recommendation_id}
+**Status**: Applied
+
+The recommended changes have been made to your account. Changes may take a few minutes to reflect in reporting.
+
+**Next Steps**:
+- Monitor performance over the next few days
+- Check for any budget or bidding changes
+- Review `google_ads_list_recommendations` for more suggestions"""
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_dismiss_recommendation",
+    annotations={
+        "title": "Dismiss Recommendation",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_dismiss_recommendation(params: DismissRecommendationInput) -> str:
+    """
+    Dismiss a Google Ads recommendation.
+
+    Dismisses a recommendation so it no longer appears in your list.
+    Use this for recommendations that are not relevant to your goals.
+
+    Args:
+        params (DismissRecommendationInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - recommendation_id (str): Recommendation resource name or ID
+
+    Returns:
+        str: Success confirmation
+
+    Examples:
+        - "Dismiss recommendation abc123"
+        - "Ignore this budget suggestion"
+
+    Note:
+        Dismissed recommendations may reappear if conditions change significantly.
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        recommendation_service = client.get_service("RecommendationService")
+
+        # Build resource name if only ID provided
+        if params.recommendation_id.startswith("customers/"):
+            resource_name = params.recommendation_id
+        else:
+            resource_name = f"customers/{customer_id}/recommendations/{params.recommendation_id}"
+
+        # Create dismiss operation
+        operation = client.get_type("DismissRecommendationOperation")
+        operation.resource_name = resource_name
+
+        # Execute
+        response = recommendation_service.dismiss_recommendation(
+            customer_id=customer_id,
+            operations=[operation]
+        )
+
+        return f"""✅ **Recommendation dismissed!**
+
+**Recommendation ID**: {params.recommendation_id}
+**Status**: Dismissed
+
+This recommendation will no longer appear in your list.
+
+**Note**: Similar recommendations may appear in the future if account conditions change."""
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# CONVERSION TRACKING TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_list_conversion_actions",
+    annotations={
+        "title": "List Conversion Actions",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_list_conversion_actions(params: ListConversionActionsInput) -> str:
+    """
+    List all conversion actions configured in the account.
+
+    Shows the conversion tracking setup including conversion types,
+    counting methods, and attribution settings.
+
+    Args:
+        params (ListConversionActionsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - include_disabled (bool): Include disabled actions (default: False)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: List of conversion actions with configuration details
+
+    Examples:
+        - "Show me all my conversion actions"
+        - "What conversions am I tracking?"
+        - "List conversion setup for account"
+
+    Note:
+        Conversion actions define what counts as a conversion (purchase,
+        lead, signup, etc.) and how they're attributed to ads.
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        status_filter = "WHERE conversion_action.status = 'ENABLED'" if not params.include_disabled else ""
+
+        query = f"""
+            SELECT
+                conversion_action.id,
+                conversion_action.name,
+                conversion_action.status
+            FROM conversion_action
+            {status_filter}
+            ORDER BY conversion_action.name
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return """⚠️ **No conversion actions found!**
+
+You don't have any conversion tracking set up. To track conversions:
+
+1. **Google Ads UI**: Go to Tools > Measurement > Conversions
+2. **Create conversion action**: Choose website, app, phone calls, or import
+3. **Install tracking code**: Add the conversion tag to your website
+
+Without conversion tracking, you can't measure ROI or optimize for conversions."""
+
+        actions = []
+        for row in results:
+            ca = row.conversion_action
+            actions.append({
+                "id": str(ca.id),
+                "name": ca.name,
+                "status": ca.status.name if hasattr(ca.status, 'name') else str(ca.status)
+            })
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                "# Conversion Actions\n",
+                f"**Total Actions**: {len(actions)}\n"
+            ]
+
+            # Simple list
+            lines.append("| Status | Name | ID |")
+            lines.append("|--------|------|----|")
+
+            for action in actions:
+                status_icon = "✅" if action["status"] == "ENABLED" else "⏸️"
+                lines.append(f"| {status_icon} | {action['name']} | {action['id']} |")
+
+            lines.append("")
+            lines.append("**Note**: Use conversion IDs for tracking and reporting configuration.")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "total": len(actions),
+                "conversion_actions": actions
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_get_conversion_stats",
+    annotations={
+        "title": "Get Conversion Statistics",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_conversion_stats(params: GetConversionStatsInput) -> str:
+    """
+    Get conversion statistics by campaign and conversion action.
+
+    Shows conversion counts, values, and cost-per-conversion for
+    your campaigns, broken down by conversion action.
+
+    Args:
+        params (GetConversionStatsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign
+            - date_range (DatePreset): Date range (default: LAST_30_DAYS)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Conversion statistics with ROI metrics
+
+    Examples:
+        - "Show me conversion stats for last 30 days"
+        - "How many conversions did campaign 123 get?"
+        - "What's my cost per conversion?"
+
+    Note:
+        Conversion data may have a 1-3 day delay due to attribution windows.
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        date_filter = _format_date_range(params.date_range)
+        campaign_filter = f"AND campaign.id = {params.campaign_id}" if params.campaign_id else ""
+
+        query = f"""
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.status,
+                metrics.conversions,
+                metrics.conversions_value,
+                metrics.cost_micros,
+                metrics.clicks,
+                metrics.impressions
+            FROM campaign
+            WHERE {date_filter}
+            {campaign_filter}
+            ORDER BY metrics.conversions DESC
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return f"""⚠️ **No conversions found for {params.date_range.value.replace('_', ' ').lower()}**
+
+This could mean:
+1. No conversion actions have been triggered
+2. Conversion tracking is not properly set up
+3. Conversions are still in the attribution window
+
+**Next Steps**:
+- Check `google_ads_list_conversion_actions` to verify setup
+- Verify conversion tags are firing on your website
+- Wait 1-3 days for conversion attribution to complete"""
+
+        # Aggregate data
+        campaigns = []
+        totals = {
+            "conversions": 0,
+            "value": 0,
+            "cost": 0,
+            "clicks": 0,
+            "impressions": 0
+        }
+
+        for row in results:
+            conversions = row.metrics.conversions or 0
+            conv_value = row.metrics.conversions_value or 0
+            cost = (row.metrics.cost_micros or 0) / 1_000_000
+            clicks = row.metrics.clicks or 0
+            impressions = row.metrics.impressions or 0
+
+            campaigns.append({
+                "id": str(row.campaign.id),
+                "name": row.campaign.name,
+                "status": row.campaign.status.name if hasattr(row.campaign.status, 'name') else str(row.campaign.status),
+                "conversions": conversions,
+                "value": conv_value,
+                "cost": cost,
+                "clicks": clicks,
+                "impressions": impressions
+            })
+
+            totals["conversions"] += conversions
+            totals["value"] += conv_value
+            totals["cost"] += cost
+            totals["clicks"] += clicks
+            totals["impressions"] += impressions
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                "# Conversion Statistics\n",
+                f"**Date Range**: {params.date_range.value.replace('_', ' ').title()}\n"
+            ]
+
+            # Summary
+            avg_cpa = totals["cost"] / totals["conversions"] if totals["conversions"] > 0 else 0
+            roas = totals["value"] / totals["cost"] if totals["cost"] > 0 else 0
+            conv_rate = (totals["conversions"] / totals["clicks"] * 100) if totals["clicks"] > 0 else 0
+
+            lines.append("## Summary")
+            lines.append(f"- **Total Conversions**: {totals['conversions']:,.1f}")
+            lines.append(f"- **Total Value**: ${totals['value']:,.2f}")
+            lines.append(f"- **Total Cost**: ${totals['cost']:,.2f}")
+            lines.append(f"- **Cost/Conversion (CPA)**: ${avg_cpa:,.2f}")
+            lines.append(f"- **Conversion Rate**: {conv_rate:.2f}%")
+            lines.append(f"- **ROAS**: {roas:.2f}x ({roas*100:.0f}%)\n")
+
+            # By campaign
+            lines.append("## By Campaign\n")
+            lines.append("| Campaign | Status | Conv | Value | Cost | CPA | ROAS |")
+            lines.append("|----------|--------|------|-------|------|-----|------|")
+            for camp in sorted(campaigns, key=lambda x: x["conversions"], reverse=True):
+                cpa = camp["cost"] / camp["conversions"] if camp["conversions"] > 0 else 0
+                campaign_roas = camp["value"] / camp["cost"] if camp["cost"] > 0 else 0
+                status_icon = "✅" if camp["status"] == "ENABLED" else "⏸️"
+                lines.append(
+                    f"| {camp['name'][:20]} | {status_icon} | {camp['conversions']:,.1f} | "
+                    f"${camp['value']:,.2f} | ${camp['cost']:,.2f} | "
+                    f"${cpa:,.2f} | {campaign_roas:.2f}x |"
+                )
+
+            lines.append("\n**Note**: Conversion data may have a 1-3 day delay due to attribution windows.")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "date_range": params.date_range.value,
+                "totals": totals,
+                "campaigns": campaigns
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_get_campaign_conversion_goals",
+    annotations={
+        "title": "Get Campaign Conversion Goals",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_campaign_conversion_goals(params: GetCampaignConversionGoalsInput) -> str:
+    """
+    Get conversion goals configured for campaigns.
+
+    Shows which conversion actions are set as primary (biddable) for each campaign.
+    This is essential for understanding what conversions campaigns are optimizing for.
+
+    Args:
+        params (GetCampaignConversionGoalsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by specific campaign
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Campaign conversion goals with biddable status
+
+    Examples:
+        - "Show me conversion goals for my campaigns"
+        - "Which conversions is campaign 123456 optimizing for?"
+        - "What are the primary conversions for my PMAX campaigns?"
+
+    Note:
+        - biddable=True means the conversion is PRIMARY (used for optimization)
+        - biddable=False means the conversion is SECONDARY (observation only)
+        - Category shows the conversion type (PURCHASE, LEAD, etc.)
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        campaign_filter = f"AND campaign.id = {params.campaign_id}" if params.campaign_id else ""
+
+        query = f"""
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.advertising_channel_type,
+                campaign.bidding_strategy_type,
+                campaign_conversion_goal.category,
+                campaign_conversion_goal.origin,
+                campaign_conversion_goal.biddable
+            FROM campaign_conversion_goal
+            WHERE campaign.status != 'REMOVED'
+            {campaign_filter}
+            ORDER BY campaign.name, campaign_conversion_goal.biddable DESC
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return """⚠️ **No campaign conversion goals found!**
+
+This could mean:
+1. Campaigns are using account-level default conversion goals
+2. No conversion actions are configured
+3. The specified campaign doesn't exist
+
+**Next Steps**:
+- Check `google_ads_list_conversion_actions` to see available conversions
+- Verify campaign IDs with `google_ads_list_campaigns`
+- Check Google Ads UI: Tools > Measurement > Conversions"""
+
+        # Group by campaign
+        by_campaign = {}
+        for row in results:
+            cid = str(row.campaign.id)
+            if cid not in by_campaign:
+                by_campaign[cid] = {
+                    "name": row.campaign.name,
+                    "channel_type": row.campaign.advertising_channel_type.name if hasattr(row.campaign.advertising_channel_type, 'name') else str(row.campaign.advertising_channel_type),
+                    "bidding_strategy": row.campaign.bidding_strategy_type.name if hasattr(row.campaign.bidding_strategy_type, 'name') else str(row.campaign.bidding_strategy_type),
+                    "goals": []
+                }
+
+            by_campaign[cid]["goals"].append({
+                "category": row.campaign_conversion_goal.category.name if hasattr(row.campaign_conversion_goal.category, 'name') else str(row.campaign_conversion_goal.category),
+                "origin": row.campaign_conversion_goal.origin.name if hasattr(row.campaign_conversion_goal.origin, 'name') else str(row.campaign_conversion_goal.origin),
+                "biddable": row.campaign_conversion_goal.biddable
+            })
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                "# Campaign Conversion Goals\n",
+                f"**Campaigns Analyzed**: {len(by_campaign)}\n"
+            ]
+
+            for cid, data in by_campaign.items():
+                primary_count = sum(1 for g in data["goals"] if g["biddable"])
+                secondary_count = len(data["goals"]) - primary_count
+
+                lines.append(f"## {data['name']}")
+                lines.append(f"- **ID**: {cid}")
+                lines.append(f"- **Type**: {data['channel_type']}")
+                lines.append(f"- **Bidding**: {data['bidding_strategy']}")
+                lines.append(f"- **Primary Goals**: {primary_count}")
+                lines.append(f"- **Secondary Goals**: {secondary_count}\n")
+
+                # Primary conversions
+                primary_goals = [g for g in data["goals"] if g["biddable"]]
+                if primary_goals:
+                    lines.append("### ✅ Primary Conversions (Used for Bidding)")
+                    lines.append("| Category | Origin |")
+                    lines.append("|----------|--------|")
+                    for goal in primary_goals:
+                        lines.append(f"| {goal['category']} | {goal['origin']} |")
+                    lines.append("")
+
+                # Secondary conversions
+                secondary_goals = [g for g in data["goals"] if not g["biddable"]]
+                if secondary_goals:
+                    lines.append("### 📊 Secondary Conversions (Observation Only)")
+                    lines.append("| Category | Origin |")
+                    lines.append("|----------|--------|")
+                    for goal in secondary_goals:
+                        lines.append(f"| {goal['category']} | {goal['origin']} |")
+                    lines.append("")
+
+            lines.append("---")
+            lines.append("**Legend**:")
+            lines.append("- **Primary**: Used for Smart Bidding optimization")
+            lines.append("- **Secondary**: Tracked but not used for bidding")
+            lines.append("- **Origin**: GOOGLE_ADS (native), FIREBASE, ANALYTICS, etc.")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "total_campaigns": len(by_campaign),
+                "campaigns": by_campaign
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# GEOGRAPHIC TARGETING TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_get_geo_targets",
+    annotations={
+        "title": "Get Geographic Targets",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_geo_targets(params: GetGeoTargetsInput) -> str:
+    """
+    Get geographic targeting settings for a campaign.
+
+    Shows which locations are targeted (included) or excluded from
+    the campaign, with location details and bid adjustments.
+
+    Args:
+        params (GetGeoTargetsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (str): Campaign ID
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: List of targeted and excluded locations
+
+    Examples:
+        - "Show geo targets for campaign 123456"
+        - "What locations is this campaign targeting?"
+        - "Which countries are excluded?"
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Query solo campaign_criterion senza join a geo_target_constant
+        query = f"""
+            SELECT
+                campaign_criterion.criterion_id,
+                campaign_criterion.location.geo_target_constant,
+                campaign_criterion.negative,
+                campaign_criterion.bid_modifier
+            FROM campaign_criterion
+            WHERE campaign.id = {params.campaign_id}
+            AND campaign_criterion.type = 'LOCATION'
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return f"""⚠️ **No geographic targeting found for campaign {params.campaign_id}**
+
+This campaign may be:
+1. Targeting all locations (no restrictions)
+2. Using account-level geographic settings
+3. A Performance Max campaign with audience signals
+
+**Tip**: Use `google_ads_set_geo_targets` to add location targeting."""
+
+        included = []
+        excluded = []
+
+        for row in results:
+            criterion = row.campaign_criterion
+            # Estrae l'ID dalla stringa geoTargetConstants/XXXXX
+            geo_constant = criterion.location.geo_target_constant
+            geo_id = geo_constant.split('/')[-1] if '/' in geo_constant else geo_constant
+
+            location_data = {
+                "criterion_id": str(criterion.criterion_id),
+                "geo_target_id": geo_id,
+                "geo_target_constant": geo_constant,
+                "bid_modifier": criterion.bid_modifier if criterion.bid_modifier else 1.0
+            }
+
+            if criterion.negative:
+                excluded.append(location_data)
+            else:
+                included.append(location_data)
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                f"# Geographic Targeting - Campaign {params.campaign_id}\n",
+                f"**Targeted Locations**: {len(included)}",
+                f"**Excluded Locations**: {len(excluded)}\n"
+            ]
+
+            if included:
+                lines.append("## ✅ Targeted Locations\n")
+                lines.append("| Geo Target ID | Bid Adjustment | Criterion ID |")
+                lines.append("|---------------|----------------|--------------|")
+                for loc in included:
+                    bid_str = f"{loc['bid_modifier']:.0%}" if loc['bid_modifier'] != 1.0 else "None"
+                    lines.append(
+                        f"| {loc['geo_target_id']} | {bid_str} | {loc['criterion_id']} |"
+                    )
+                lines.append("")
+
+            if excluded:
+                lines.append("## ❌ Excluded Locations\n")
+                lines.append("| Geo Target ID | Criterion ID |")
+                lines.append("|---------------|--------------|")
+                for loc in excluded:
+                    lines.append(
+                        f"| {loc['geo_target_id']} | {loc['criterion_id']} |"
+                    )
+                lines.append("")
+
+            lines.append("---")
+            lines.append("**Common Geo Target IDs**:")
+            lines.append("- **2380**: Italy")
+            lines.append("- **2840**: United States")
+            lines.append("- **2826**: United Kingdom")
+            lines.append("- **2276**: Germany")
+            lines.append("- **2250**: France")
+            lines.append("")
+            lines.append("Use `google_ads_search_geo_targets` to find location IDs by name.")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "campaign_id": params.campaign_id,
+                "included": included,
+                "excluded": excluded
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_search_geo_targets",
+    annotations={
+        "title": "Search Geographic Locations",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_search_geo_targets(params: SearchGeoTargetsInput) -> str:
+    """
+    Search for geographic locations to target.
+
+    Find location IDs for cities, regions, or countries to use with
+    `google_ads_set_geo_targets`. Returns matching locations with their
+    Google Ads geo target constant IDs.
+
+    Args:
+        params (SearchGeoTargetsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - query (str): Search query (city/region/country name)
+            - country_code (Optional[str]): Filter by country (e.g., 'IT', 'US')
+            - limit (int): Maximum results (default: 20)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Matching locations with IDs for targeting
+
+    Examples:
+        - "Search for Rome" → Returns Roma, Italy locations
+        - "Find Milan locations" → Cities, airports, regions
+        - "Search for California" → State and cities in CA
+
+    Note:
+        Use the returned geo_target_constant ID with `google_ads_set_geo_targets`
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Use GeoTargetConstantService for search
+        geo_target_service = client.get_service("GeoTargetConstantService")
+
+        # Build suggestion request
+        request = client.get_type("SuggestGeoTargetConstantsRequest")
+        request.locale = "en"
+
+        # Set location names for search
+        location_names = request.location_names
+        location_names.names.append(params.query)
+
+        if params.country_code:
+            request.country_code = params.country_code.upper()
+
+        # Execute search
+        response = geo_target_service.suggest_geo_target_constants(request=request)
+
+        if not response.geo_target_constant_suggestions:
+            return f"""⚠️ **No locations found matching "{params.query}"**
+
+**Tips**:
+- Try a different spelling
+- Use English location names
+- Be more specific (e.g., "Milan, Italy" instead of just "Milan")
+- Check the country code filter
+
+**Common Location IDs**:
+- Italy: 2380
+- United States: 2840
+- United Kingdom: 2826
+- Germany: 2276
+- France: 2250
+- Spain: 2724"""
+
+        locations = []
+        for suggestion in response.geo_target_constant_suggestions[:params.limit]:
+            geo = suggestion.geo_target_constant
+            # Extract ID from resource name
+            geo_id = geo.resource_name.split("/")[-1] if geo.resource_name else ""
+
+            locations.append({
+                "id": geo_id,
+                "resource_name": geo.resource_name,
+                "name": geo.name,
+                "canonical_name": geo.canonical_name,
+                "country_code": geo.country_code,
+                "type": geo.target_type.name if hasattr(geo.target_type, 'name') else str(geo.target_type),
+                "reach": suggestion.reach if hasattr(suggestion, 'reach') else None
+            })
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                f"# Location Search Results for \"{params.query}\"\n",
+                f"**Results Found**: {len(locations)}\n"
+            ]
+
+            lines.append("## Matching Locations\n")
+            lines.append("| Location | Type | Country | ID (for targeting) |")
+            lines.append("|----------|------|---------|-------------------|")
+
+            for loc in locations:
+                lines.append(
+                    f"| {loc['canonical_name'][:40]} | {loc['type']} | "
+                    f"{loc['country_code']} | `{loc['id']}` |"
+                )
+
+            lines.append("\n## How to Use These IDs\n")
+            lines.append("Use `google_ads_set_geo_targets` with the location ID:")
+            lines.append("```")
+            lines.append(f"location_ids: [\"{locations[0]['id']}\"]")
+            lines.append("```")
+
+            return "\n".join(lines)
+
+        else:  # JSON
+            return json.dumps({
+                "query": params.query,
+                "total": len(locations),
+                "locations": locations
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_set_geo_targets",
+    annotations={
+        "title": "Set Geographic Targets",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def google_ads_set_geo_targets(params: SetGeoTargetsInput) -> str:
+    """
+    Add geographic targeting to a campaign.
+
+    Target or exclude specific locations. Use `google_ads_search_geo_targets`
+    to find location IDs first.
+
+    Args:
+        params (SetGeoTargetsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (str): Campaign ID
+            - location_ids (List[str]): Location IDs to target (geo target constants)
+            - target_type (GeoTargetType): INCLUSION (target) or EXCLUSION (exclude)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success message with added locations
+
+    Examples:
+        - "Target Italy (ID: 2380) for campaign 123"
+        - "Exclude New York City from campaign"
+        - "Add Rome and Milan to geo targets"
+
+    Common Location IDs:
+        - Italy: 2380
+        - United States: 2840
+        - United Kingdom: 2826
+        - Roma (city): 1008463
+        - Milano (city): 1008542
+
+    Note:
+        Use `google_ads_search_geo_targets` to find specific location IDs.
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        campaign_criterion_service = client.get_service("CampaignCriterionService")
+
+        operations = []
+        for location_id in params.location_ids:
+            operation = client.get_type("CampaignCriterionOperation")
+            criterion = operation.create
+
+            criterion.campaign = f"customers/{customer_id}/campaigns/{params.campaign_id}"
+            criterion.location.geo_target_constant = f"geoTargetConstants/{location_id}"
+            criterion.negative = (params.target_type == GeoTargetType.EXCLUSION)
+
+            operations.append(operation)
+
+        # Execute
+        response = campaign_criterion_service.mutate_campaign_criteria(
+            customer_id=customer_id,
+            operations=operations
+        )
+
+        action = "excluded from" if params.target_type == GeoTargetType.EXCLUSION else "targeted in"
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            return f"""✅ **Geographic targeting updated!**
+
+**Campaign ID**: {params.campaign_id}
+**Action**: {len(params.location_ids)} location(s) {action} campaign
+**Location IDs**: {', '.join(params.location_ids)}
+
+The changes take effect immediately. Your ads will now show (or not show)
+in these locations based on user location and interest.
+
+**Next Steps**:
+- Verify with `google_ads_get_geo_targets`
+- Monitor performance by location in Google Ads UI
+- Consider adding bid adjustments for high-value locations"""
+
+        else:  # JSON
+            return json.dumps({
+                "success": True,
+                "campaign_id": params.campaign_id,
+                "locations_added": params.location_ids,
+                "target_type": params.target_type.value,
+                "resource_names": [r.resource_name for r in response.results]
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_remove_geo_targets",
+    annotations={
+        "title": "Remove Geographic Targets",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_remove_geo_targets(params: RemoveGeoTargetsInput) -> str:
+    """
+    Remove geographic targeting from a campaign.
+
+    Removes location targeting criteria. After removal, the campaign
+    may target all locations unless other geo targets remain.
+
+    Args:
+        params (RemoveGeoTargetsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (str): Campaign ID
+            - criterion_ids (List[str]): Criterion IDs to remove
+
+    Returns:
+        str: Success confirmation
+
+    Examples:
+        - "Remove location criterion 12345 from campaign"
+        - "Delete geo target for Rome"
+
+    Note:
+        Get criterion IDs from `google_ads_get_geo_targets`
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        campaign_criterion_service = client.get_service("CampaignCriterionService")
+
+        operations = []
+        for criterion_id in params.criterion_ids:
+            operation = client.get_type("CampaignCriterionOperation")
+            operation.remove = campaign_criterion_service.campaign_criterion_path(
+                customer_id, params.campaign_id, criterion_id
+            )
+            operations.append(operation)
+
+        # Execute
+        response = campaign_criterion_service.mutate_campaign_criteria(
+            customer_id=customer_id,
+            operations=operations
+        )
+
+        return f"""✅ **Geographic targeting removed!**
+
+**Campaign ID**: {params.campaign_id}
+**Removed Criteria**: {', '.join(params.criterion_ids)}
+
+The location targeting has been removed from this campaign.
+
+**Warning**: If no other geo targets remain, the campaign may now
+target all locations. Verify with `google_ads_get_geo_targets`."""
 
     except Exception as e:
         return _handle_google_ads_error(e)
