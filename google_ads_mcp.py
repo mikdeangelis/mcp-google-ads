@@ -648,6 +648,18 @@ class GetCampaignConversionGoalsInput(BaseModel):
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
 
 
+class GetConversionsByActionInput(BaseModel):
+    """Input for getting conversions breakdown by conversion action."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Filter by campaign ID (optional)")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for conversion data")
+    min_conversions: Optional[float] = Field(default=0, ge=0, description="Minimum conversions to include (default: 0)")
+    limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum conversion actions to return")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
 # ============================================================================
 # GEOGRAPHIC TARGETING INPUT MODELS
 # ============================================================================
@@ -664,6 +676,17 @@ class GetGeoTargetsInput(BaseModel):
 
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_id: str = Field(..., description="Campaign ID")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class GetGeoPerformanceInput(BaseModel):
+    """Input for getting geographic performance metrics."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID (optional, if not provided returns account-level)")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for metrics")
+    limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum locations to return")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
 
 
@@ -5157,6 +5180,233 @@ This could mean:
 
 
 @mcp.tool(
+    name="google_ads_get_conversions_by_action",
+    annotations={
+        "title": "Get Conversions by Action",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_conversions_by_action(params: GetConversionsByActionInput) -> str:
+    """
+    Get conversions breakdown by conversion action name.
+
+    Shows detailed conversion metrics segmented by each conversion action,
+    allowing you to see which conversion types are performing best.
+    Essential for:
+    - Understanding which conversion actions drive results
+    - Identifying high-value vs low-value conversion types
+    - Optimizing campaigns for specific conversion goals
+    - Analyzing conversion action performance trends
+
+    Args:
+        params (GetConversionsByActionInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign (optional)
+            - date_range (DatePreset): Date range (default: LAST_30_DAYS)
+            - min_conversions (float): Minimum conversions to include (default: 0)
+            - limit (int): Maximum conversion actions to return (1-200, default: 50)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Conversions breakdown by action with metrics
+
+        Markdown format shows:
+        - Conversion action name
+        - Number of conversions
+        - Conversion value
+        - Value per conversion
+        - All conversions (including view-through)
+
+        JSON format provides structured data for analysis
+
+    Important:
+        Cost/CPA metrics are NOT available per conversion action due to
+        Google Ads API limitations. Use `google_ads_get_conversion_stats`
+        for cost-related metrics at campaign level.
+
+    Examples:
+        - "Show me conversions breakdown by action"
+        - "Which conversion actions are performing best?"
+        - "Get conversion stats by type for campaign 123456"
+        - "What's my cost per conversion for each action?"
+
+    Note:
+        - Conversion data may have a 1-3 day delay due to attribution windows
+        - Only shows conversion actions that have recorded conversions
+        - Use with google_ads_list_conversion_actions to see all configured actions
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Build date filter
+        date_filter = _format_date_range(params.date_range)
+
+        # Build campaign filter if specified
+        campaign_filter = ""
+        if params.campaign_id:
+            campaign_filter = f"AND campaign.id = {params.campaign_id}"
+
+        # Query with conversion_action segment for breakdown
+        # Note: cost_micros is NOT compatible with conversion_action segment
+        query = f"""
+            SELECT
+                segments.conversion_action_name,
+                segments.conversion_action,
+                campaign.id,
+                campaign.name,
+                metrics.conversions,
+                metrics.conversions_value,
+                metrics.all_conversions,
+                metrics.all_conversions_value
+            FROM campaign
+            WHERE {date_filter}
+            {campaign_filter}
+            AND metrics.conversions > {params.min_conversions}
+            ORDER BY metrics.conversions DESC
+            LIMIT {params.limit * 5}
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            campaign_info = f" for campaign {params.campaign_id}" if params.campaign_id else ""
+            return f"""⚠️ **No conversion data found{campaign_info}**
+
+This could mean:
+1. No conversions have been recorded in the selected period ({params.date_range.value})
+2. Conversion tracking is not properly configured
+3. Conversions are still in the attribution window (1-3 days)
+
+**Next Steps**:
+- Check `google_ads_list_conversion_actions` to verify setup
+- Verify conversion tags are firing correctly
+- Try a longer date range like LAST_30_DAYS"""
+
+        # Aggregate by conversion action name
+        action_data = {}
+
+        for row in results:
+            action_name = row.segments.conversion_action_name or "Unknown"
+            action_id = row.segments.conversion_action or ""
+
+            if action_name not in action_data:
+                action_data[action_name] = {
+                    "name": action_name,
+                    "action_id": action_id,
+                    "conversions": 0.0,
+                    "value": 0.0,
+                    "all_conversions": 0.0,
+                    "all_conversions_value": 0.0,
+                    "campaigns": set()
+                }
+
+            action_data[action_name]["conversions"] += row.metrics.conversions or 0
+            action_data[action_name]["value"] += row.metrics.conversions_value or 0
+            action_data[action_name]["all_conversions"] += row.metrics.all_conversions or 0
+            action_data[action_name]["all_conversions_value"] += row.metrics.all_conversions_value or 0
+            action_data[action_name]["campaigns"].add(row.campaign.name)
+
+        # Calculate derived metrics and convert to list
+        actions = []
+        for name, data in action_data.items():
+            data["value_per_conv"] = data["value"] / data["conversions"] if data["conversions"] > 0 else 0
+            data["campaigns"] = list(data["campaigns"])
+            actions.append(data)
+
+        # Sort by conversions and limit
+        actions.sort(key=lambda x: x["conversions"], reverse=True)
+        actions = actions[:params.limit]
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            campaign_info = f" - Campaign {params.campaign_id}" if params.campaign_id else ""
+            lines = [
+                f"# Conversions by Action{campaign_info}\n",
+                f"**Period**: {params.date_range.value.replace('_', ' ').title()}",
+                f"**Conversion Actions**: {len(actions)}\n",
+            ]
+
+            # Summary totals
+            total_conversions = sum(a["conversions"] for a in actions)
+            total_value = sum(a["value"] for a in actions)
+            total_all_conversions = sum(a["all_conversions"] for a in actions)
+            avg_value_per_conv = total_value / total_conversions if total_conversions > 0 else 0
+
+            lines.append("## Summary")
+            lines.append(f"- **Total Conversions**: {total_conversions:,.1f}")
+            lines.append(f"- **Total Value**: €{total_value:,.2f}")
+            lines.append(f"- **All Conversions** (incl. view-through): {total_all_conversions:,.1f}")
+            lines.append(f"- **Avg Value/Conversion**: €{avg_value_per_conv:,.2f}\n")
+
+            # Table by conversion action
+            lines.append("## By Conversion Action\n")
+            lines.append("| Conversion Action | Conversions | Value | Value/Conv | All Conv |")
+            lines.append("|-------------------|-------------|-------|------------|----------|")
+
+            for action in actions:
+                # Truncate long names
+                name_display = action["name"][:25] + "..." if len(action["name"]) > 28 else action["name"]
+                lines.append(
+                    f"| {name_display} | "
+                    f"{action['conversions']:,.1f} | "
+                    f"€{action['value']:,.2f} | "
+                    f"€{action['value_per_conv']:,.2f} | "
+                    f"{action['all_conversions']:,.1f} |"
+                )
+
+            # Add totals row
+            lines.append("|-------------------|-------------|-------|------------|----------|")
+            lines.append(
+                f"| **TOTAL** | "
+                f"**{total_conversions:,.1f}** | "
+                f"**€{total_value:,.2f}** | "
+                f"**€{avg_value_per_conv:,.2f}** | "
+                f"**{total_all_conversions:,.1f}** |"
+            )
+
+            # Performance insights
+            lines.append("")
+            lines.append("---")
+            lines.append("**Performance Insights:**")
+
+            if actions:
+                best_volume = actions[0]
+                best_value = max(actions, key=lambda x: x["value"]) if actions else None
+                best_value_per_conv = max([a for a in actions if a["conversions"] > 0], key=lambda x: x["value_per_conv"], default=None)
+
+                lines.append(f"- 🏆 Highest Volume: **{best_volume['name'][:30]}** ({best_volume['conversions']:,.1f} conversions)")
+                if best_value and best_value["value"] > 0:
+                    lines.append(f"- 💰 Highest Value: **{best_value['name'][:30]}** (€{best_value['value']:,.2f})")
+                if best_value_per_conv and best_value_per_conv["value_per_conv"] > 0:
+                    lines.append(f"- 📈 Best Value/Conv: **{best_value_per_conv['name'][:30]}** (€{best_value_per_conv['value_per_conv']:,.2f})")
+
+            lines.append("")
+            lines.append("**Note**: Conversion data may have a 1-3 day delay due to attribution windows.")
+            lines.append("**Tip**: Use `google_ads_get_conversion_stats` for cost/CPA metrics at campaign level.")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "campaign_id": params.campaign_id,
+                "date_range": params.date_range.value,
+                "total_actions": len(actions),
+                "totals": {
+                    "conversions": sum(a["conversions"] for a in actions),
+                    "value": sum(a["value"] for a in actions),
+                    "all_conversions": sum(a["all_conversions"] for a in actions),
+                },
+                "conversion_actions": actions
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
     name="google_ads_get_campaign_conversion_goals",
     annotations={
         "title": "Get Campaign Conversion Goals",
@@ -5720,6 +5970,269 @@ The location targeting has been removed from this campaign.
 
 **Warning**: If no other geo targets remain, the campaign may now
 target all locations. Verify with `google_ads_get_geo_targets`."""
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_get_geo_performance",
+    annotations={
+        "title": "Get Geographic Performance",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False
+    }
+)
+async def google_ads_get_geo_performance(params: GetGeoPerformanceInput) -> str:
+    """
+    Get performance metrics broken down by geographic location.
+
+    Shows clicks, impressions, cost, CTR, and CPC for each country/region
+    where ads were shown. Essential for:
+    - Identifying top-performing geographic markets
+    - Finding underperforming regions to exclude
+    - Optimizing budget allocation by country
+    - Understanding geographic ROI
+
+    Args:
+        params (GetGeoPerformanceInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign (optional)
+            - date_range (DatePreset): Date range (default: LAST_30_DAYS)
+            - limit (int): Maximum locations to return (1-200, default: 50)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Geographic performance metrics by location
+
+        Markdown format shows:
+        - Country name and code
+        - Impressions, Clicks, CTR
+        - Cost (in account currency)
+        - Average CPC
+        - Conversions (if available)
+
+        JSON format provides structured data for analysis
+
+    Examples:
+        - "Show geographic performance for campaign 123456"
+        - "Which countries have the best CTR?"
+        - "Get CPC by country for last 7 days"
+        - "What's the performance breakdown by country?"
+
+    Note:
+        Uses the geographic_view resource which shows where ads were
+        actually shown (user location), not just targeted locations.
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Build date filter
+        date_filter = f"segments.date DURING {params.date_range.value}"
+
+        # Build campaign filter if specified
+        campaign_filter = ""
+        if params.campaign_id:
+            campaign_filter = f"AND campaign.id = {params.campaign_id}"
+
+        # Query geographic_view for performance by country
+        query = f"""
+            SELECT
+                geographic_view.country_criterion_id,
+                campaign.id,
+                campaign.name,
+                metrics.impressions,
+                metrics.clicks,
+                metrics.cost_micros,
+                metrics.ctr,
+                metrics.average_cpc,
+                metrics.conversions,
+                metrics.conversions_value
+            FROM geographic_view
+            WHERE {date_filter}
+            {campaign_filter}
+            AND metrics.impressions > 0
+            ORDER BY metrics.cost_micros DESC
+            LIMIT {params.limit}
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            campaign_info = f" for campaign {params.campaign_id}" if params.campaign_id else ""
+            return f"""⚠️ **No geographic performance data found{campaign_info}**
+
+This could mean:
+1. No impressions in the selected date range ({params.date_range.value})
+2. Geographic data not yet available (may take 24-48 hours)
+3. Campaign uses automated targeting without geo breakdown
+
+**Tip**: Try a longer date range like LAST_30_DAYS."""
+
+        # Map geo target IDs to country names
+        geo_id_to_country = {
+            "2004": ("🇦🇫", "Afghanistan", "AF"),
+            "2008": ("🇦🇱", "Albania", "AL"),
+            "2012": ("🇩🇿", "Algeria", "DZ"),
+            "2020": ("🇦🇩", "Andorra", "AD"),
+            "2024": ("🇦🇴", "Angola", "AO"),
+            "2032": ("🇦🇷", "Argentina", "AR"),
+            "2036": ("🇦🇺", "Australia", "AU"),
+            "2040": ("🇦🇹", "Austria", "AT"),
+            "2056": ("🇧🇪", "Belgium", "BE"),
+            "2076": ("🇧🇷", "Brazil", "BR"),
+            "2100": ("🇧🇬", "Bulgaria", "BG"),
+            "2124": ("🇨🇦", "Canada", "CA"),
+            "2152": ("🇨🇱", "Chile", "CL"),
+            "2156": ("🇨🇳", "China", "CN"),
+            "2170": ("🇨🇴", "Colombia", "CO"),
+            "2191": ("🇭🇷", "Croatia", "HR"),
+            "2196": ("🇨🇾", "Cyprus", "CY"),
+            "2203": ("🇨🇿", "Czechia", "CZ"),
+            "2208": ("🇩🇰", "Denmark", "DK"),
+            "2233": ("🇪🇪", "Estonia", "EE"),
+            "2246": ("🇫🇮", "Finland", "FI"),
+            "2250": ("🇫🇷", "France", "FR"),
+            "2276": ("🇩🇪", "Germany", "DE"),
+            "2300": ("🇮🇪", "Ireland", "IE"),
+            "2372": ("🇳🇱", "Netherlands", "NL"),
+            "2380": ("🇮🇹", "Italy", "IT"),
+            "2392": ("🇯🇵", "Japan", "JP"),
+            "2410": ("🇰🇷", "South Korea", "KR"),
+            "2428": ("🇱🇻", "Latvia", "LV"),
+            "2440": ("🇱🇹", "Lithuania", "LT"),
+            "2442": ("🇱🇺", "Luxembourg", "LU"),
+            "2470": ("🇲🇹", "Malta", "MT"),
+            "2484": ("🇲🇽", "Mexico", "MX"),
+            "2528": ("🇵🇱", "Poland", "PL"),
+            "2616": ("🇵🇹", "Portugal", "PT"),
+            "2620": ("🇪🇸", "Spain", "ES"),
+            "2642": ("🇷🇴", "Romania", "RO"),
+            "2643": ("🇷🇺", "Russia", "RU"),
+            "2674": ("🇸🇲", "San Marino", "SM"),
+            "2703": ("🇸🇰", "Slovakia", "SK"),
+            "2705": ("🇸🇮", "Slovenia", "SI"),
+            "2724": ("🇬🇧", "United Kingdom", "GB"),
+            "2752": ("🇸🇪", "Sweden", "SE"),
+            "2756": ("🇨🇭", "Switzerland", "CH"),
+            "2792": ("🇹🇷", "Turkey", "TR"),
+            "2804": ("🇺🇦", "Ukraine", "UA"),
+            "2826": ("🇬🇧", "United Kingdom", "GB"),
+            "2840": ("🇺🇸", "United States", "US"),
+        }
+
+        # Aggregate by country (sum metrics across campaigns if no campaign filter)
+        country_data = {}
+        for row in results:
+            geo_id = str(row.geographic_view.country_criterion_id)
+
+            if geo_id not in country_data:
+                flag, name, code = geo_id_to_country.get(geo_id, ("🌍", f"Unknown ({geo_id})", geo_id))
+                country_data[geo_id] = {
+                    "flag": flag,
+                    "name": name,
+                    "code": code,
+                    "geo_id": geo_id,
+                    "impressions": 0,
+                    "clicks": 0,
+                    "cost_micros": 0,
+                    "conversions": 0.0,
+                    "conversions_value": 0.0,
+                }
+
+            country_data[geo_id]["impressions"] += row.metrics.impressions
+            country_data[geo_id]["clicks"] += row.metrics.clicks
+            country_data[geo_id]["cost_micros"] += row.metrics.cost_micros
+            country_data[geo_id]["conversions"] += row.metrics.conversions
+            country_data[geo_id]["conversions_value"] += row.metrics.conversions_value
+
+        # Calculate derived metrics and sort by cost
+        countries = []
+        for geo_id, data in country_data.items():
+            data["cost"] = data["cost_micros"] / 1_000_000
+            data["ctr"] = (data["clicks"] / data["impressions"] * 100) if data["impressions"] > 0 else 0
+            data["cpc"] = (data["cost"] / data["clicks"]) if data["clicks"] > 0 else 0
+            countries.append(data)
+
+        countries.sort(key=lambda x: x["cost"], reverse=True)
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            campaign_info = f" - Campaign {params.campaign_id}" if params.campaign_id else ""
+            lines = [
+                f"# Geographic Performance{campaign_info}\n",
+                f"**Period**: {params.date_range.value.replace('_', ' ').title()}",
+                f"**Countries**: {len(countries)}\n",
+                "| Country | Impressions | Clicks | CTR | Cost | CPC | Conv |",
+                "|---------|-------------|--------|-----|------|-----|------|",
+            ]
+
+            total_impressions = 0
+            total_clicks = 0
+            total_cost = 0
+            total_conversions = 0
+
+            for country in countries:
+                total_impressions += country["impressions"]
+                total_clicks += country["clicks"]
+                total_cost += country["cost"]
+                total_conversions += country["conversions"]
+
+                lines.append(
+                    f"| {country['flag']} {country['name']} | "
+                    f"{country['impressions']:,} | "
+                    f"{country['clicks']:,} | "
+                    f"{country['ctr']:.2f}% | "
+                    f"€{country['cost']:.2f} | "
+                    f"€{country['cpc']:.2f} | "
+                    f"{country['conversions']:.1f} |"
+                )
+
+            # Add totals row
+            total_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
+            total_cpc = (total_cost / total_clicks) if total_clicks > 0 else 0
+            lines.append("|---------|-------------|--------|-----|------|-----|------|")
+            lines.append(
+                f"| **TOTAL** | "
+                f"**{total_impressions:,}** | "
+                f"**{total_clicks:,}** | "
+                f"**{total_ctr:.2f}%** | "
+                f"**€{total_cost:.2f}** | "
+                f"**€{total_cpc:.2f}** | "
+                f"**{total_conversions:.1f}** |"
+            )
+
+            lines.append("")
+            lines.append("---")
+            lines.append("**Performance Insights:**")
+
+            if countries:
+                best_ctr = max(countries, key=lambda x: x["ctr"])
+                best_cpc = min([c for c in countries if c["clicks"] > 0], key=lambda x: x["cpc"], default=None)
+                highest_spend = countries[0]
+
+                lines.append(f"- 🏆 Best CTR: {best_ctr['flag']} {best_ctr['name']} ({best_ctr['ctr']:.2f}%)")
+                if best_cpc:
+                    lines.append(f"- 💰 Lowest CPC: {best_cpc['flag']} {best_cpc['name']} (€{best_cpc['cpc']:.2f})")
+                lines.append(f"- 📊 Highest Spend: {highest_spend['flag']} {highest_spend['name']} (€{highest_spend['cost']:.2f})")
+
+            return _check_and_truncate("\n".join(lines))
+
+        else:  # JSON
+            return json.dumps({
+                "campaign_id": params.campaign_id,
+                "date_range": params.date_range.value,
+                "total_countries": len(countries),
+                "countries": countries,
+                "totals": {
+                    "impressions": sum(c["impressions"] for c in countries),
+                    "clicks": sum(c["clicks"] for c in countries),
+                    "cost": sum(c["cost"] for c in countries),
+                    "conversions": sum(c["conversions"] for c in countries),
+                }
+            }, indent=2)
 
     except Exception as e:
         return _handle_google_ads_error(e)

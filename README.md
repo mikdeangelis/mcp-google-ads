@@ -4,36 +4,71 @@ Model Context Protocol (MCP) server for Google Ads API integration. Provides com
 
 ## Features
 
-### Phase 1 - MVP (Implemented)
+### Account Management
+- `google_ads_list_accounts` - List all accessible accounts
+- `google_ads_get_account_info` - Get detailed account information
 
-**Account Management:**
-- ✅ `google_ads_list_accounts` - List all accessible accounts
-- ✅ `google_ads_get_account_info` - Get detailed account information
+### Campaign Operations
+- `google_ads_list_campaigns` - List campaigns with filtering and pagination
+- `google_ads_get_campaign` - Get detailed campaign settings
+- `google_ads_get_campaign_insights` - Get performance metrics
+- `google_ads_create_campaign` - Create new campaigns
+- `google_ads_update_campaign_status` - Enable/pause/remove campaigns
+- `google_ads_set_campaign_schedule` - Set ad scheduling (day parting)
+- `google_ads_update_campaign_budget` - Update daily budget
 
-**Campaign Operations:**
-- ✅ `google_ads_list_campaigns` - List campaigns with filtering and pagination
-- ✅ `google_ads_get_campaign` - Get detailed campaign settings
-- ✅ `google_ads_get_campaign_insights` - Get performance metrics
-- ✅ `google_ads_create_campaign` - Create new campaigns
-- ✅ `google_ads_update_campaign_status` - Enable/pause/remove campaigns
+### Ad Groups
+- `google_ads_list_ad_groups` - List ad groups for a campaign
+- `google_ads_create_ad_group` - Create new ad groups
+- `google_ads_update_ad_group_status` - Enable/pause/remove ad groups
 
-### Roadmap (Coming Soon)
+### Ads
+- `google_ads_list_ads` - List ads for an ad group
+- `google_ads_create_responsive_search_ad` - Create RSA ads
+- `google_ads_update_ad_status` - Enable/pause/remove ads
 
-**Phase 2 - Core Functionality:**
-- Ad Groups (list, create, update, delete)
-- Ads (list, create responsive search ads, update status)
-- Keywords (list, add, update, remove, negative keywords)
+### Keywords
+- `google_ads_list_keywords` - List keywords for an ad group
+- `google_ads_add_keywords` - Add keywords with match types
+- `google_ads_remove_keywords` - Remove keywords
 
-**Phase 3 - Assets & Extensions:**
-- Asset management (images, videos, text)
-- Sitelinks (create, link to campaigns)
-- Callouts (create, link)
-- Structured Snippets (create, link)
+### Negative Keywords
+- `google_ads_list_negative_keywords` - List negative keywords
+- `google_ads_add_negative_keywords` - Add negative keywords (campaign/ad group level)
+- `google_ads_remove_negative_keywords` - Remove negative keywords
 
-**Phase 4 - Advanced:**
-- Batch operations
-- Advanced insights with breakdowns
-- Asset groups for Performance Max
+### Performance Max Assets
+- `google_ads_get_asset_performance` - Get PMax asset performance metrics
+- `google_ads_create_text_assets` - Create and add text assets to asset groups
+- `google_ads_remove_asset_from_group` - Remove assets from asset groups
+- `google_ads_update_asset_group_assets` - Batch update assets (add + remove)
+
+### Search Terms & Insights
+- `google_ads_get_search_terms` - Get search terms report
+- `google_ads_get_budget_utilization` - Check budget spend vs allocation
+
+### Quality & Optimization
+- `google_ads_get_keyword_quality_scores` - Get Quality Score breakdown
+- `google_ads_get_ad_strength` - Get RSA Ad Strength ratings
+- `google_ads_get_policy_issues` - Find disapproved ads/assets
+
+### Recommendations
+- `google_ads_list_recommendations` - List Google's optimization recommendations
+- `google_ads_apply_recommendation` - Apply a recommendation
+- `google_ads_dismiss_recommendation` - Dismiss a recommendation
+
+### Conversion Tracking
+- `google_ads_list_conversion_actions` - List configured conversion actions
+- `google_ads_get_conversion_stats` - Get conversion statistics by campaign
+- `google_ads_get_conversions_by_action` - **NEW** Get conversions breakdown by conversion action name
+- `google_ads_get_campaign_conversion_goals` - Get campaign conversion goals configuration
+
+### Geographic Targeting
+- `google_ads_get_geo_targets` - Get campaign geo targeting settings
+- `google_ads_search_geo_targets` - Search for locations to target
+- `google_ads_set_geo_targets` - Add geo targeting (include/exclude)
+- `google_ads_remove_geo_targets` - Remove geo targeting
+- `google_ads_get_geo_performance` - Get performance by geographic location
 
 ## Installation
 
@@ -45,10 +80,12 @@ Model Context Protocol (MCP) server for Google Ads API integration. Provides com
 
 ### Setup
 
-1. **Clone or download this directory**
+1. **Clone or download this repository**
 
-2. **Install dependencies:**
+2. **Create virtual environment and install dependencies:**
    ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
@@ -65,6 +102,7 @@ Model Context Protocol (MCP) server for Google Ads API integration. Provides com
    GOOGLE_ADS_CLIENT_ID=your_client_id.apps.googleusercontent.com
    GOOGLE_ADS_CLIENT_SECRET=your_secret
    GOOGLE_ADS_REFRESH_TOKEN=your_refresh_token
+   GOOGLE_ADS_LOGIN_CUSTOMER_ID=your_mcc_id  # Optional, for MCC accounts
    ```
 
 ### Getting Google Ads API Credentials
@@ -88,6 +126,7 @@ Model Context Protocol (MCP) server for Google Ads API integration. Provides com
 ### Running the Server
 
 ```bash
+source .venv/bin/activate
 python google_ads_mcp.py
 ```
 
@@ -99,146 +138,58 @@ Add to your Claude Desktop MCP configuration (`~/Library/Application Support/Cla
 {
   "mcpServers": {
     "google-ads": {
-      "command": "python",
-      "args": ["/path/to/google-ads-mcp/google_ads_mcp.py"],
+      "command": "/path/to/mcp-google-ads/.venv/bin/python",
+      "args": ["/path/to/mcp-google-ads/google_ads_mcp.py"],
       "env": {
         "GOOGLE_ADS_DEVELOPER_TOKEN": "your_token",
         "GOOGLE_ADS_CLIENT_ID": "your_client_id",
         "GOOGLE_ADS_CLIENT_SECRET": "your_secret",
-        "GOOGLE_ADS_REFRESH_TOKEN": "your_refresh_token"
+        "GOOGLE_ADS_REFRESH_TOKEN": "your_refresh_token",
+        "GOOGLE_ADS_LOGIN_CUSTOMER_ID": "your_mcc_id"
       }
     }
   }
 }
 ```
 
-Or use environment variables:
-```json
-{
-  "mcpServers": {
-    "google-ads": {
-      "command": "python",
-      "args": ["/path/to/google-ads-mcp/google_ads_mcp.py"]
-    }
-  }
-}
+### Adding to Claude Code
+
+```bash
+claude mcp add google-ads \
+  -e GOOGLE_ADS_DEVELOPER_TOKEN=your_token \
+  -e GOOGLE_ADS_CLIENT_ID=your_client_id \
+  -e GOOGLE_ADS_CLIENT_SECRET=your_secret \
+  -e GOOGLE_ADS_REFRESH_TOKEN=your_refresh_token \
+  -e GOOGLE_ADS_LOGIN_CUSTOMER_ID=your_mcc_id \
+  -- /path/to/mcp-google-ads/.venv/bin/python /path/to/mcp-google-ads/google_ads_mcp.py
 ```
 
 ## Tool Documentation
 
-### Account Tools
+### Conversion Tools
 
-#### `google_ads_list_accounts`
-Lists all Google Ads accounts accessible with your credentials.
-
-**Parameters:**
-- `limit` (optional): Max accounts to return (1-100, default: 25)
-- `response_format` (optional): "markdown" or "json" (default: markdown)
-
-**Example:**
-```
-List all my Google Ads accounts
-```
-
-#### `google_ads_get_account_info`
-Gets detailed information about a specific account.
+#### `google_ads_get_conversions_by_action`
+Get conversions breakdown by conversion action name. Shows which conversion types are performing best.
 
 **Parameters:**
 - `customer_id` (required): 10-digit account ID
-- `response_format` (optional): Output format
-
-**Example:**
-```
-Get info for account 1234567890
-```
-
-### Campaign Tools
-
-#### `google_ads_list_campaigns`
-Lists campaigns with optional filtering.
-
-**Parameters:**
-- `customer_id` (required): 10-digit account ID
-- `status_filter` (optional): ENABLED, PAUSED, or REMOVED
-- `limit` (optional): Max campaigns (1-100, default: 20)
-- `offset` (optional): Pagination offset (default: 0)
-- `response_format` (optional): Output format
-
-**Examples:**
-```
-List all campaigns for account 1234567890
-Show me active campaigns
-Get paused campaigns with limit 50
-```
-
-#### `google_ads_get_campaign`
-Gets detailed settings for a specific campaign.
-
-**Parameters:**
-- `customer_id` (required): 10-digit account ID
-- `campaign_id` (required): Campaign ID
-- `response_format` (optional): Output format
-
-**Example:**
-```
-Get details for campaign 123456789
-```
-
-#### `google_ads_get_campaign_insights`
-Gets performance metrics for a campaign.
-
-**Parameters:**
-- `customer_id` (required): 10-digit account ID
-- `campaign_id` (required): Campaign ID
+- `campaign_id` (optional): Filter by campaign
 - `date_range` (optional): TODAY, YESTERDAY, LAST_7_DAYS, LAST_30_DAYS, etc. (default: LAST_30_DAYS)
-- `response_format` (optional): Output format
+- `min_conversions` (optional): Minimum conversions threshold (default: 0)
+- `limit` (optional): Max results (1-200, default: 50)
+- `response_format` (optional): "markdown" or "json"
 
 **Example:**
 ```
-Get performance for campaign 123456789 in the last 7 days
+Show me conversions breakdown by action for account 1234567890
+Which conversion actions have the highest value?
 ```
 
-#### `google_ads_create_campaign`
-Creates a new campaign.
+**Note:** Cost/CPA metrics are not available per conversion action due to Google Ads API limitations. Use `google_ads_get_conversion_stats` for cost metrics at campaign level.
 
-**Parameters:**
-- `customer_id` (required): 10-digit account ID
-- `campaign_name` (required): Campaign name (1-255 chars)
-- `budget_amount_micros` (required): Daily budget in micros (min: 1000000 = $1)
-- `advertising_channel_type` (required): SEARCH, DISPLAY, SHOPPING, VIDEO, PERFORMANCE_MAX, etc.
-- `bidding_strategy` (optional): MANUAL_CPC, MAXIMIZE_CONVERSIONS, TARGET_CPA, etc. (default: MANUAL_CPC)
-- `target_google_search` (optional): Target Google Search (default: true)
-- `target_search_network` (optional): Target Search partners (default: false)
-- `target_content_network` (optional): Target Display Network (default: false)
-- `start_date` (optional): Start date (YYYYMMDD)
-- `end_date` (optional): End date (YYYYMMDD)
+### Response Formats
 
-**Example:**
-```
-Create a search campaign called "Summer Sale" with $50 daily budget
-```
-
-**Note:** Campaigns are created in PAUSED status for safety.
-
-#### `google_ads_update_campaign_status`
-Updates campaign status (enable, pause, or remove).
-
-**Parameters:**
-- `customer_id` (required): 10-digit account ID
-- `campaign_id` (required): Campaign ID
-- `status` (required): ENABLED, PAUSED, or REMOVED
-
-**Examples:**
-```
-Enable campaign 123456789
-Pause campaign 987654321
-```
-
-**Warning:** Setting status to REMOVED is permanent.
-
-## Response Formats
-
-### Markdown Format (Default)
+#### Markdown Format (Default)
 Human-readable format with:
 - Headers and sections
 - Bullet points
@@ -246,7 +197,7 @@ Human-readable format with:
 - Clear hierarchy
 - Formatted dates and currency
 
-### JSON Format
+#### JSON Format
 Machine-readable format with:
 - Complete structured data
 - All available fields
@@ -256,24 +207,17 @@ Machine-readable format with:
 ## Error Handling
 
 The server provides clear, actionable error messages for:
-- ✅ Authentication errors (invalid credentials)
-- ✅ Authorization errors (no access to account)
-- ✅ Rate limiting (API quota exceeded)
-- ✅ Invalid customer IDs
-- ✅ Resource not found
-- ✅ Budget configuration issues
-- ✅ Field validation errors
-
-## Character Limits
-
-Responses are automatically truncated at 25,000 characters with:
-- Clear truncation warning
-- Suggestion to use filters or pagination
-- Indication of original size
+- Authentication errors (invalid credentials)
+- Authorization errors (no access to account)
+- Rate limiting (API quota exceeded)
+- Invalid customer IDs
+- Resource not found
+- Budget configuration issues
+- Field validation errors
 
 ## Best Practices
 
-1. **Start Paused:** New campaigns are created in PAUSED status - review settings before enabling
+1. **Start Paused:** New campaigns/ad groups are created in PAUSED status - review settings before enabling
 2. **Test Accounts:** Use test accounts for development
 3. **Monitor Budgets:** Set appropriate budget limits
 4. **Use Filters:** Apply status filters and pagination for large accounts
@@ -306,12 +250,6 @@ python -m py_compile google_ads_mcp.py
 python google_ads_mcp.py
 ```
 
-### Code Structure
-- **Enums:** Response formats, campaign types, statuses
-- **Pydantic Models:** Input validation with constraints
-- **Utility Functions:** Shared logic (auth, errors, formatting)
-- **Tool Implementations:** FastMCP decorated async functions
-
 ## Support
 
 - [Google Ads API Documentation](https://developers.google.com/google-ads/api/docs/start)
@@ -322,25 +260,19 @@ python google_ads_mcp.py
 
 MIT License - See LICENSE file for details
 
-## Contributing
-
-Contributions welcome! Please:
-1. Follow existing code style
-2. Add comprehensive docstrings
-3. Test with real Google Ads accounts
-4. Update documentation
-
 ## Version History
 
-### v1.0.0 (Phase 1 - MVP)
-- Initial release
+### v1.3.0 (Current)
+- Added `google_ads_get_conversions_by_action` - Conversion breakdown by action name
+- Full conversion tracking tools
+- Geographic targeting and performance
+- Performance Max asset management
+- Quality scores and ad strength
+- Recommendations management
+- Budget utilization tracking
+
+### v1.0.0 (Initial)
 - Account management tools
 - Campaign CRUD operations
+- Ad groups, ads, keywords
 - Performance insights
-- Status updates
-
-### Planned
-- v1.1.0: Ad Groups and Ads (Phase 2)
-- v1.2.0: Keywords and Negative Keywords (Phase 2)
-- v1.3.0: Assets and Extensions (Phase 3)
-- v2.0.0: Advanced Features (Phase 4)
