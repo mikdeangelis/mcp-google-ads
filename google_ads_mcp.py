@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, field_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from mcp.server.fastmcp import FastMCP
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
@@ -154,6 +154,64 @@ class AssetFieldType(str, Enum):
     CALL_TO_ACTION_SELECTION = "CALL_TO_ACTION_SELECTION"
 
 
+class StructuredSnippetHeader(str, Enum):
+    """Valid header types for structured snippet extensions."""
+    AMENITIES = "Amenities"
+    BRANDS = "Brands"
+    COURSES = "Courses"
+    DEGREE_PROGRAMS = "Degree programs"
+    DESTINATIONS = "Destinations"
+    FEATURED_HOTELS = "Featured hotels"
+    GOODS = "Goods"
+    INSURANCE_COVERAGE = "Insurance coverage"
+    ITEMS = "Items"
+    MODELS = "Models"
+    NEIGHBORHOODS = "Neighborhoods"
+    SERVICE_CATALOG = "Service catalog"
+    SERVICES = "Services"
+    SHOWS = "Shows"
+    STYLES = "Styles"
+    TYPES = "Types"
+
+
+class ExtensionType(str, Enum):
+    """Types of ad extensions."""
+    SITELINK = "SITELINK"
+    CALLOUT = "CALLOUT"
+    STRUCTURED_SNIPPET = "STRUCTURED_SNIPPET"
+    CALL = "CALL"
+    PRICE = "PRICE"
+    PROMOTION = "PROMOTION"
+    LOCATION = "LOCATION"
+    APP = "APP"
+    IMAGE = "IMAGE"
+
+
+class ExtensionLevel(str, Enum):
+    """Level at which extensions are applied."""
+    CAMPAIGN = "CAMPAIGN"
+    AD_GROUP = "AD_GROUP"
+
+
+class CallToActionType(str, Enum):
+    """Call to action types for PMAX campaigns."""
+    LEARN_MORE = "LEARN_MORE"
+    GET_QUOTE = "GET_QUOTE"
+    APPLY_NOW = "APPLY_NOW"
+    SIGN_UP = "SIGN_UP"
+    CONTACT_US = "CONTACT_US"
+    SUBSCRIBE = "SUBSCRIBE"
+    DOWNLOAD = "DOWNLOAD"
+    BOOK_NOW = "BOOK_NOW"
+    SHOP_NOW = "SHOP_NOW"
+    BUY_NOW = "BUY_NOW"
+    SEE_MORE = "SEE_MORE"
+    WATCH_NOW = "WATCH_NOW"
+    GET_OFFER = "GET_OFFER"
+    ORDER_NOW = "ORDER_NOW"
+    START_NOW = "START_NOW"
+
+
 # ============================================================================
 # PYDANTIC INPUT MODELS
 # ============================================================================
@@ -200,8 +258,16 @@ class GetCampaignInsightsInput(BaseModel):
 
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_id: str = Field(..., description="Campaign ID")
-    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for metrics")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range preset (ignored if since/until provided)")
+    since: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="Start date (YYYY-MM-DD). Requires 'until' parameter")
+    until: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="End date (YYYY-MM-DD). Requires 'since' parameter")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        if (self.since is None) != (self.until is None):
+            raise ValueError("Both 'since' and 'until' must be provided together for custom date range")
+        return self
 
 
 class GetSearchTermsInput(BaseModel):
@@ -211,10 +277,18 @@ class GetSearchTermsInput(BaseModel):
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_id: Optional[str] = Field(None, description="Filter by campaign ID (optional)")
     ad_group_id: Optional[str] = Field(None, description="Filter by ad group ID (optional)")
-    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for data")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range preset (ignored if since/until provided)")
+    since: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="Start date (YYYY-MM-DD). Requires 'until' parameter")
+    until: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="End date (YYYY-MM-DD). Requires 'since' parameter")
     min_impressions: Optional[int] = Field(default=1, ge=1, description="Minimum impressions to include")
     limit: Optional[int] = Field(default=100, ge=1, le=500, description="Maximum search terms to return")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        if (self.since is None) != (self.until is None):
+            raise ValueError("Both 'since' and 'until' must be provided together for custom date range")
+        return self
 
 
 class GetAssetPerformanceInput(BaseModel):
@@ -224,11 +298,19 @@ class GetAssetPerformanceInput(BaseModel):
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_id: str = Field(..., description="Campaign ID (must be Performance Max)")
     asset_group_id: Optional[str] = Field(None, description="Filter by specific asset group (optional)")
-    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for metrics")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range preset (ignored if since/until provided)")
+    since: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="Start date (YYYY-MM-DD). Requires 'until' parameter")
+    until: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="End date (YYYY-MM-DD). Requires 'since' parameter")
     asset_type_filter: Optional[str] = Field(None, description="Filter by asset type: HEADLINE, DESCRIPTION, IMAGE, VIDEO, etc.")
     min_impressions: Optional[int] = Field(default=1, ge=1, description="Minimum impressions to include")
     limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum assets to return")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        if (self.since is None) != (self.until is None):
+            raise ValueError("Both 'since' and 'until' must be provided together for custom date range")
+        return self
 
 
 class CreateCampaignInput(BaseModel):
@@ -275,6 +357,479 @@ class SetCampaignScheduleInput(BaseModel):
         if v not in [0, 15, 30, 45]:
             raise ValueError("Minutes must be 0, 15, 30, or 45")
         return v
+
+
+class UpdateBiddingStrategyInput(BaseModel):
+    """Input for updating campaign bidding strategy."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: str = Field(..., description="Campaign ID to update")
+    bidding_strategy: BiddingStrategyType = Field(..., description="New bidding strategy")
+
+    # Strategy-specific parameters
+    target_cpa_micros: Optional[int] = Field(
+        default=None,
+        ge=100000,  # Minimum $0.10
+        description="Target CPA in micros (required for TARGET_CPA, e.g., 5000000 = $5)"
+    )
+    target_roas: Optional[float] = Field(
+        default=None,
+        ge=0.01,
+        le=100.0,
+        description="Target ROAS as decimal (required for TARGET_ROAS, e.g., 3.0 = 300%)"
+    )
+    enhanced_cpc_enabled: Optional[bool] = Field(
+        default=True,
+        description="Enable Enhanced CPC for MANUAL_CPC strategy"
+    )
+
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_strategy_params(self):
+        """Validate that required parameters are provided for each strategy."""
+        if self.bidding_strategy == BiddingStrategyType.TARGET_CPA and not self.target_cpa_micros:
+            raise ValueError("target_cpa_micros is required when using TARGET_CPA strategy")
+        if self.bidding_strategy == BiddingStrategyType.TARGET_ROAS and not self.target_roas:
+            raise ValueError("target_roas is required when using TARGET_ROAS strategy")
+        return self
+
+
+# ============================================================================
+# AD EXTENSIONS INPUT MODELS
+# ============================================================================
+
+class SitelinkInput(BaseModel):
+    """Single sitelink definition."""
+    link_text: str = Field(..., min_length=1, max_length=25, description="Sitelink text (max 25 chars)")
+    final_urls: List[str] = Field(..., min_length=1, description="Landing page URLs")
+    description1: Optional[str] = Field(default=None, max_length=35, description="First description line (max 35 chars)")
+    description2: Optional[str] = Field(default=None, max_length=35, description="Second description line (max 35 chars)")
+
+
+class CreateSitelinksInput(BaseModel):
+    """Input for creating sitelink extensions."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    sitelinks: List[SitelinkInput] = Field(..., min_length=1, max_length=20, description="Sitelinks to create (1-20)")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID to attach sitelinks (provide this OR ad_group_id)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID to attach sitelinks (provide this OR campaign_id)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_level(self):
+        """Ensure exactly one of campaign_id or ad_group_id is provided."""
+        if not self.campaign_id and not self.ad_group_id:
+            raise ValueError("Either campaign_id or ad_group_id must be provided")
+        if self.campaign_id and self.ad_group_id:
+            raise ValueError("Provide only one of campaign_id or ad_group_id, not both")
+        return self
+
+
+class CreateCalloutsInput(BaseModel):
+    """Input for creating callout extensions."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    callouts: List[str] = Field(..., min_length=1, max_length=20, description="Callout texts (1-20, max 25 chars each)")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID to attach callouts (provide this OR ad_group_id)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID to attach callouts (provide this OR campaign_id)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @field_validator('callouts')
+    @classmethod
+    def validate_callouts(cls, v: List[str]) -> List[str]:
+        """Validate callout text length."""
+        for callout in v:
+            if len(callout) > 25:
+                raise ValueError(f"Callout too long (max 25 chars): {callout}")
+            if len(callout) < 1:
+                raise ValueError("Callout text cannot be empty")
+        return v
+
+    @model_validator(mode='after')
+    def validate_level(self):
+        """Ensure exactly one of campaign_id or ad_group_id is provided."""
+        if not self.campaign_id and not self.ad_group_id:
+            raise ValueError("Either campaign_id or ad_group_id must be provided")
+        if self.campaign_id and self.ad_group_id:
+            raise ValueError("Provide only one of campaign_id or ad_group_id, not both")
+        return self
+
+
+class CreateStructuredSnippetsInput(BaseModel):
+    """Input for creating structured snippet extensions."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    header: StructuredSnippetHeader = Field(..., description="Snippet header type (e.g., BRANDS, SERVICES)")
+    values: List[str] = Field(..., min_length=3, max_length=10, description="Snippet values (3-10 items, max 25 chars each)")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID to attach snippets (provide this OR ad_group_id)")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID to attach snippets (provide this OR campaign_id)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @field_validator('values')
+    @classmethod
+    def validate_values(cls, v: List[str]) -> List[str]:
+        """Validate snippet values length."""
+        for value in v:
+            if len(value) > 25:
+                raise ValueError(f"Snippet value too long (max 25 chars): {value}")
+            if len(value) < 1:
+                raise ValueError("Snippet value cannot be empty")
+        return v
+
+    @model_validator(mode='after')
+    def validate_level(self):
+        """Ensure exactly one of campaign_id or ad_group_id is provided."""
+        if not self.campaign_id and not self.ad_group_id:
+            raise ValueError("Either campaign_id or ad_group_id must be provided")
+        if self.campaign_id and self.ad_group_id:
+            raise ValueError("Provide only one of campaign_id or ad_group_id, not both")
+        return self
+
+
+class ListExtensionsInput(BaseModel):
+    """Input for listing ad extensions."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: Optional[str] = Field(default=None, description="Filter by campaign ID")
+    ad_group_id: Optional[str] = Field(default=None, description="Filter by ad group ID")
+    extension_type: Optional[ExtensionType] = Field(default=None, description="Filter by extension type (SITELINK, CALLOUT, STRUCTURED_SNIPPET)")
+    limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum extensions to return")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class RemoveExtensionInput(BaseModel):
+    """Input for removing an ad extension."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    asset_id: str = Field(..., description="Asset ID to remove")
+    campaign_id: Optional[str] = Field(default=None, description="Campaign ID if extension is campaign-level")
+    ad_group_id: Optional[str] = Field(default=None, description="Ad group ID if extension is ad group-level")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_level(self):
+        """Ensure exactly one of campaign_id or ad_group_id is provided."""
+        if not self.campaign_id and not self.ad_group_id:
+            raise ValueError("Either campaign_id or ad_group_id must be provided")
+        if self.campaign_id and self.ad_group_id:
+            raise ValueError("Provide only one of campaign_id or ad_group_id, not both")
+        return self
+
+
+# Keyword Planner Input Models
+
+class GetKeywordIdeasInput(BaseModel):
+    """Input for getting keyword ideas from Keyword Planner."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    seed_keywords: Optional[List[str]] = Field(
+        default=None,
+        max_length=10,
+        description="Seed keywords to get ideas from (up to 10)"
+    )
+    seed_url: Optional[str] = Field(
+        default=None,
+        description="URL to analyze for keyword ideas"
+    )
+    geo_target_constants: List[str] = Field(
+        ...,
+        min_length=1,
+        description="Geo target constant IDs (REQUIRED, e.g., ['2380'] for Italy, ['2840'] for USA)"
+    )
+    language_id: str = Field(
+        default="1000",
+        description="Language ID (default: 1000 for English, 1004 for Italian)"
+    )
+    include_adult_keywords: bool = Field(default=False, description="Include adult keywords")
+    limit: int = Field(default=50, ge=1, le=200, description="Max keyword ideas to return (1-200)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_seeds(self):
+        """Ensure at least one seed is provided."""
+        if not self.seed_keywords and not self.seed_url:
+            raise ValueError("Provide at least one of seed_keywords or seed_url")
+        return self
+
+
+class KeywordForecastItem(BaseModel):
+    """Single keyword for forecasting."""
+    text: str = Field(..., description="Keyword text")
+    match_type: KeywordMatchType = Field(default=KeywordMatchType.BROAD, description="Match type")
+
+
+class GetKeywordForecastsInput(BaseModel):
+    """Input for getting keyword forecasts."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    keywords: List[KeywordForecastItem] = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Keywords to forecast (1-50)"
+    )
+    daily_budget_micros: int = Field(
+        ...,
+        ge=1000000,
+        description="Daily budget in micros for forecast (min: 1000000 = $1)"
+    )
+    geo_target_constants: List[str] = Field(
+        ...,
+        min_length=1,
+        description="Geo target constant IDs (REQUIRED)"
+    )
+    language_id: str = Field(default="1000", description="Language ID")
+    forecast_days: int = Field(default=30, ge=1, le=365, description="Number of days to forecast (1-365)")
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+
+class SimulateCampaignBudgetInput(BaseModel):
+    """Input for simulating campaign budget scenarios."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_id: str = Field(..., description="Campaign ID to simulate")
+    budget_scenarios_micros: List[int] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="Budget scenarios in micros to simulate (1-10, min 1000000 each)"
+    )
+    response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @field_validator('budget_scenarios_micros', mode='after')
+    @classmethod
+    def validate_budgets(cls, v):
+        """Ensure all budgets are at least $1."""
+        for budget in v:
+            if budget < 1000000:
+                raise ValueError(f"Each budget must be at least 1000000 micros ($1), got {budget}")
+        return v
+
+
+# PMAX Campaign Input Models
+
+class CreatePmaxCampaignInput(BaseModel):
+    """Input for creating a Performance Max campaign with asset group."""
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
+    campaign_name: str = Field(..., min_length=1, max_length=255, description="Campaign name")
+    daily_budget_micros: int = Field(
+        ...,
+        ge=1000000,
+        description="Daily budget in micros (min: 1000000 = $1)"
+    )
+
+    # Asset Group
+    asset_group_name: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Asset group name (defaults to campaign name + ' Asset Group')"
+    )
+    final_urls: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=10,
+        description="Landing page URLs (1-10)"
+    )
+
+    # Required Text Assets
+    headlines: List[str] = Field(
+        ...,
+        min_length=3,
+        max_length=15,
+        description="Headlines (3-15 required, max 30 chars each)"
+    )
+    long_headlines: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=5,
+        description="Long headlines (1-5 required, max 90 chars each)"
+    )
+    descriptions: List[str] = Field(
+        ...,
+        min_length=2,
+        max_length=5,
+        description="Descriptions (2-5 required, max 90 chars each)"
+    )
+    business_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=25,
+        description="Business name (max 25 chars)"
+    )
+
+    # Required Image Assets (local file paths)
+    marketing_images: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=20,
+        description="Landscape marketing images - local file paths (1-20, 1.91:1 aspect ratio, min 600x314px, recommended 1200x628px)"
+    )
+    square_marketing_images: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=20,
+        description="Square marketing images - local file paths (1-20, 1:1 aspect ratio, min 300x300px, recommended 1200x1200px)"
+    )
+    logo_images: List[str] = Field(
+        ...,
+        min_length=1,
+        max_length=5,
+        description="Logo images - local file paths (1-5, 1:1 aspect ratio, min 128x128px, recommended 1200x1200px)"
+    )
+    portrait_marketing_images: Optional[List[str]] = Field(
+        default=None,
+        max_length=20,
+        description="Portrait marketing images - local file paths (optional, 4:5 aspect ratio, min 480x600px, recommended 960x1200px)"
+    )
+
+    # Bidding
+    bidding_strategy: BiddingStrategyType = Field(
+        default=BiddingStrategyType.MAXIMIZE_CONVERSIONS,
+        description="Bidding strategy (default: MAXIMIZE_CONVERSIONS)"
+    )
+    target_cpa_micros: Optional[int] = Field(
+        default=None,
+        ge=1000000,
+        description="Target CPA in micros (for TARGET_CPA bidding)"
+    )
+    target_roas: Optional[float] = Field(
+        default=None,
+        ge=0.01,
+        le=10.0,
+        description="Target ROAS (e.g., 3.0 = 300% ROAS, for MAXIMIZE_CONVERSION_VALUE)"
+    )
+
+    # Targeting (REQUIRED - no default)
+    geo_target_country_codes: List[str] = Field(
+        ...,
+        min_length=1,
+        description="Country codes for geo targeting (REQUIRED, e.g., ['IT'], ['US', 'CA'])"
+    )
+
+    # Options
+    call_to_action: CallToActionType = Field(
+        default=CallToActionType.LEARN_MORE,
+        description="Call to action type"
+    )
+    start_paused: bool = Field(
+        default=True,
+        description="Create campaign in PAUSED status (default: True for safety)"
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format"
+    )
+
+    @field_validator('headlines', mode='after')
+    @classmethod
+    def validate_headlines(cls, v):
+        """Validate headline character limits."""
+        for i, headline in enumerate(v):
+            if len(headline) > 30:
+                raise ValueError(f"Headline {i+1} exceeds 30 chars: '{headline[:35]}...'")
+        return v
+
+    @field_validator('long_headlines', mode='after')
+    @classmethod
+    def validate_long_headlines(cls, v):
+        """Validate long headline character limits."""
+        for i, headline in enumerate(v):
+            if len(headline) > 90:
+                raise ValueError(f"Long headline {i+1} exceeds 90 chars")
+        return v
+
+    @field_validator('descriptions', mode='after')
+    @classmethod
+    def validate_descriptions(cls, v):
+        """Validate description character limits."""
+        for i, desc in enumerate(v):
+            if len(desc) > 90:
+                raise ValueError(f"Description {i+1} exceeds 90 chars")
+        return v
+
+    @field_validator('marketing_images', 'square_marketing_images', 'logo_images', mode='after')
+    @classmethod
+    def validate_image_paths(cls, v, info):
+        """Validate that image files exist and are valid image types."""
+        import os
+        valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+        field_name = info.field_name
+
+        for i, path in enumerate(v):
+            # Expand user home directory
+            expanded_path = os.path.expanduser(path)
+
+            if not os.path.exists(expanded_path):
+                raise ValueError(f"{field_name}[{i}]: File not found: {path}")
+
+            if not os.path.isfile(expanded_path):
+                raise ValueError(f"{field_name}[{i}]: Not a file: {path}")
+
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in valid_extensions:
+                raise ValueError(f"{field_name}[{i}]: Invalid image type '{ext}'. Allowed: {valid_extensions}")
+
+            # Check file size (max 5MB)
+            file_size = os.path.getsize(expanded_path)
+            if file_size > 5 * 1024 * 1024:
+                raise ValueError(f"{field_name}[{i}]: File too large ({file_size // 1024 // 1024}MB). Max 5MB")
+
+        return v
+
+    @field_validator('portrait_marketing_images', mode='after')
+    @classmethod
+    def validate_optional_image_paths(cls, v):
+        """Validate optional portrait image paths."""
+        import os
+        if v is None:
+            return v
+
+        valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+
+        for i, path in enumerate(v):
+            expanded_path = os.path.expanduser(path)
+
+            if not os.path.exists(expanded_path):
+                raise ValueError(f"portrait_marketing_images[{i}]: File not found: {path}")
+
+            if not os.path.isfile(expanded_path):
+                raise ValueError(f"portrait_marketing_images[{i}]: Not a file: {path}")
+
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in valid_extensions:
+                raise ValueError(f"portrait_marketing_images[{i}]: Invalid image type '{ext}'")
+
+            file_size = os.path.getsize(expanded_path)
+            if file_size > 5 * 1024 * 1024:
+                raise ValueError(f"portrait_marketing_images[{i}]: File too large. Max 5MB")
+
+        return v
+
+    @model_validator(mode='after')
+    def validate_bidding(self):
+        """Validate bidding strategy requirements."""
+        if self.bidding_strategy == BiddingStrategyType.TARGET_CPA and not self.target_cpa_micros:
+            raise ValueError("target_cpa_micros is required when using TARGET_CPA bidding")
+        if self.bidding_strategy == BiddingStrategyType.TARGET_ROAS and not self.target_roas:
+            raise ValueError("target_roas is required when using TARGET_ROAS bidding")
+        # PMAX only supports certain strategies
+        allowed = [BiddingStrategyType.MAXIMIZE_CONVERSIONS, BiddingStrategyType.MAXIMIZE_CONVERSION_VALUE,
+                   BiddingStrategyType.TARGET_CPA, BiddingStrategyType.TARGET_ROAS]
+        if self.bidding_strategy not in allowed:
+            raise ValueError(f"PMAX campaigns only support: {[s.value for s in allowed]}")
+        return self
 
 
 # Ad Groups Input Models
@@ -520,8 +1075,16 @@ class GetBudgetUtilizationInput(BaseModel):
 
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_ids: Optional[List[str]] = Field(default=None, description="Campaign IDs to check (optional, defaults to all)")
-    date_range: DatePreset = Field(default=DatePreset.LAST_7_DAYS, description="Date range for utilization calculation")
+    date_range: DatePreset = Field(default=DatePreset.LAST_7_DAYS, description="Date range preset (ignored if since/until provided)")
+    since: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="Start date (YYYY-MM-DD). Requires 'until' parameter")
+    until: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="End date (YYYY-MM-DD). Requires 'since' parameter")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        if (self.since is None) != (self.until is None):
+            raise ValueError("Both 'since' and 'until' must be provided together for custom date range")
+        return self
 
 
 # ============================================================================
@@ -635,8 +1198,16 @@ class GetConversionStatsInput(BaseModel):
 
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_id: Optional[str] = Field(default=None, description="Filter by campaign ID (optional)")
-    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for conversion data")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range preset (ignored if since/until provided)")
+    since: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="Start date (YYYY-MM-DD). Requires 'until' parameter")
+    until: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="End date (YYYY-MM-DD). Requires 'since' parameter")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        if (self.since is None) != (self.until is None):
+            raise ValueError("Both 'since' and 'until' must be provided together for custom date range")
+        return self
 
 
 class GetCampaignConversionGoalsInput(BaseModel):
@@ -654,10 +1225,18 @@ class GetConversionsByActionInput(BaseModel):
 
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_id: Optional[str] = Field(default=None, description="Filter by campaign ID (optional)")
-    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for conversion data")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range preset (ignored if since/until provided)")
+    since: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="Start date (YYYY-MM-DD). Requires 'until' parameter")
+    until: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="End date (YYYY-MM-DD). Requires 'since' parameter")
     min_conversions: Optional[float] = Field(default=0, ge=0, description="Minimum conversions to include (default: 0)")
     limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum conversion actions to return")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        if (self.since is None) != (self.until is None):
+            raise ValueError("Both 'since' and 'until' must be provided together for custom date range")
+        return self
 
 
 # ============================================================================
@@ -685,9 +1264,17 @@ class GetGeoPerformanceInput(BaseModel):
 
     customer_id: str = Field(..., min_length=10, max_length=10, description="10-digit customer ID")
     campaign_id: Optional[str] = Field(default=None, description="Campaign ID (optional, if not provided returns account-level)")
-    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range for metrics")
+    date_range: DatePreset = Field(default=DatePreset.LAST_30_DAYS, description="Date range preset (ignored if since/until provided)")
+    since: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="Start date (YYYY-MM-DD). Requires 'until' parameter")
+    until: Optional[str] = Field(default=None, pattern=r'^\d{4}-\d{2}-\d{2}$', description="End date (YYYY-MM-DD). Requires 'since' parameter")
     limit: Optional[int] = Field(default=50, ge=1, le=200, description="Maximum locations to return")
     response_format: ResponseFormat = Field(default=ResponseFormat.MARKDOWN, description="Output format")
+
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        if (self.since is None) != (self.until is None):
+            raise ValueError("Both 'since' and 'until' must be provided together for custom date range")
+        return self
 
 
 class SetGeoTargetsInput(BaseModel):
@@ -876,8 +1463,30 @@ def _format_money_micros(micros: int, currency_code: str = "USD") -> str:
     return f"{currency_code} {amount:,.2f}"
 
 
-def _format_date_range(date_preset: DatePreset) -> str:
-    """Convert date preset enum to GAQL date segment."""
+def _format_date_range(
+    date_preset: DatePreset = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> str:
+    """
+    Convert date preset or custom date range to GAQL date segment.
+
+    If start_date and end_date are provided, uses custom range with BETWEEN.
+    Otherwise falls back to date_preset mapping.
+
+    Args:
+        date_preset: Preset date range (e.g., LAST_7_DAYS)
+        start_date: Custom start date in YYYY-MM-DD format
+        end_date: Custom end date in YYYY-MM-DD format
+
+    Returns:
+        str: GAQL WHERE clause for date filtering
+    """
+    # Custom date range takes precedence
+    if start_date and end_date:
+        return f"segments.date BETWEEN '{start_date}' AND '{end_date}'"
+
+    # Fall back to preset mapping
     mapping = {
         DatePreset.TODAY: "segments.date DURING TODAY",
         DatePreset.YESTERDAY: "segments.date DURING YESTERDAY",
@@ -1437,7 +2046,11 @@ async def google_ads_get_campaign_insights(params: GetCampaignInsightsInput) -> 
             - customer_id (str): 10-digit customer ID
             - campaign_id (str): Campaign ID
             - date_range (DatePreset): Date range (default: LAST_30_DAYS)
+            - since (Optional[str]): Start date (YYYY-MM-DD). Requires 'until' parameter
+            - until (Optional[str]): End date (YYYY-MM-DD). Requires 'since' parameter
             - response_format (ResponseFormat): Output format
+
+        Note: If 'since' and 'until' are provided, 'date_range' is ignored.
 
     Returns:
         str: Campaign performance metrics
@@ -1446,13 +2059,14 @@ async def google_ads_get_campaign_insights(params: GetCampaignInsightsInput) -> 
         - "Get performance for campaign 123456789"
         - "Show me last 7 days metrics for campaign 987654321"
         - "What are the stats for campaign 555555555?"
+        - "Get metrics from 2025-12-09 to 2025-12-11"
     """
     try:
         customer_id = _validate_customer_id(params.customer_id)
         client = _get_google_ads_client()
 
-        # Build date filter
-        date_filter = _format_date_range(params.date_range)
+        # Build date filter (custom dates take precedence over preset)
+        date_filter = _format_date_range(params.date_range, params.since, params.until)
 
         query = f"""
             SELECT
@@ -1611,8 +2225,8 @@ async def google_ads_get_search_terms(params: GetSearchTermsInput) -> str:
         customer_id = _validate_customer_id(params.customer_id)
         client = _get_google_ads_client()
 
-        # Build date filter
-        date_filter = _format_date_range(params.date_range)
+        # Build date filter (custom dates take precedence over preset)
+        date_filter = _format_date_range(params.date_range, params.since, params.until)
 
         # Build WHERE clauses
         where_clauses = [date_filter]
@@ -1805,8 +2419,8 @@ async def google_ads_get_asset_performance(params: GetAssetPerformanceInput) -> 
         customer_id = _validate_customer_id(params.customer_id)
         client = _get_google_ads_client()
 
-        # Build date filter
-        date_filter = _format_date_range(params.date_range)
+        # Build date filter (custom dates take precedence over preset)
+        date_filter = _format_date_range(params.date_range, params.since, params.until)
 
         # Build WHERE clauses
         where_clauses = [
@@ -3912,8 +4526,8 @@ async def google_ads_get_budget_utilization(params: GetBudgetUtilizationInput) -
         customer_id = _validate_customer_id(params.customer_id)
         client = _get_google_ads_client()
 
-        # Build query
-        date_filter = _format_date_range(params.date_range)
+        # Build query (custom dates take precedence over preset)
+        date_filter = _format_date_range(params.date_range, params.since, params.until)
         campaign_filter = ""
         if params.campaign_ids:
             ids = ", ".join(params.campaign_ids)
@@ -5063,7 +5677,8 @@ async def google_ads_get_conversion_stats(params: GetConversionStatsInput) -> st
         customer_id = _validate_customer_id(params.customer_id)
         client = _get_google_ads_client()
 
-        date_filter = _format_date_range(params.date_range)
+        # Custom dates take precedence over preset
+        date_filter = _format_date_range(params.date_range, params.since, params.until)
         campaign_filter = f"AND campaign.id = {params.campaign_id}" if params.campaign_id else ""
 
         query = f"""
@@ -5242,8 +5857,8 @@ async def google_ads_get_conversions_by_action(params: GetConversionsByActionInp
         customer_id = _validate_customer_id(params.customer_id)
         client = _get_google_ads_client()
 
-        # Build date filter
-        date_filter = _format_date_range(params.date_range)
+        # Build date filter (custom dates take precedence over preset)
+        date_filter = _format_date_range(params.date_range, params.since, params.until)
 
         # Build campaign filter if specified
         campaign_filter = ""
@@ -6030,8 +6645,8 @@ async def google_ads_get_geo_performance(params: GetGeoPerformanceInput) -> str:
         customer_id = _validate_customer_id(params.customer_id)
         client = _get_google_ads_client()
 
-        # Build date filter
-        date_filter = f"segments.date DURING {params.date_range.value}"
+        # Build date filter (custom dates take precedence over preset)
+        date_filter = _format_date_range(params.date_range, params.since, params.until)
 
         # Build campaign filter if specified
         campaign_filter = ""
@@ -6232,6 +6847,1910 @@ This could mean:
                     "cost": sum(c["cost"] for c in countries),
                     "conversions": sum(c["conversions"] for c in countries),
                 }
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# BIDDING STRATEGY MANAGEMENT
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_update_bidding_strategy",
+    annotations={
+        "title": "Update Campaign Bidding Strategy",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def google_ads_update_bidding_strategy(params: UpdateBiddingStrategyInput) -> str:
+    """
+    Update the bidding strategy for an existing campaign.
+
+    Supports changing between Manual CPC, Target CPA, Target ROAS,
+    Maximize Conversions, and Maximize Conversion Value strategies.
+
+    Args:
+        params (UpdateBiddingStrategyInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (str): Campaign ID to update
+            - bidding_strategy (BiddingStrategyType): New bidding strategy
+            - target_cpa_micros (Optional[int]): Target CPA in micros (required for TARGET_CPA)
+            - target_roas (Optional[float]): Target ROAS as decimal (required for TARGET_ROAS)
+            - enhanced_cpc_enabled (Optional[bool]): Enable Enhanced CPC for MANUAL_CPC
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success message with old and new bidding strategy details
+
+    Examples:
+        - "Change campaign 123456 to Target CPA with $5 target"
+        - "Switch campaign to Maximize Conversions"
+        - "Set Target ROAS to 300% for campaign"
+
+    Note:
+        - Changing bidding strategies resets the learning period (24-48 hours)
+        - Performance Max campaigns only support MAXIMIZE_CONVERSIONS or MAXIMIZE_CONVERSION_VALUE
+        - Some strategies require conversion tracking to be set up
+    """
+    try:
+        customer_id = _validate_customer_id(params.customer_id)
+        client = _get_google_ads_client()
+
+        # Step 1: Get current campaign details
+        query = f"""
+            SELECT
+                campaign.id,
+                campaign.name,
+                campaign.status,
+                campaign.advertising_channel_type,
+                campaign.bidding_strategy_type,
+                campaign.manual_cpc.enhanced_cpc_enabled,
+                campaign.maximize_conversions.target_cpa_micros,
+                campaign.maximize_conversion_value.target_roas,
+                campaign.target_cpa.target_cpa_micros,
+                campaign.target_roas.target_roas
+            FROM campaign
+            WHERE campaign.id = {params.campaign_id}
+        """
+
+        results = _execute_query(client, customer_id, query)
+
+        if not results:
+            return f"Error: Campaign {params.campaign_id} not found"
+
+        row = results[0]
+        campaign = row.campaign
+        old_strategy = campaign.bidding_strategy_type.name if hasattr(campaign, 'bidding_strategy_type') else "UNKNOWN"
+        campaign_type = campaign.advertising_channel_type.name
+
+        # Validate PMAX restrictions
+        if campaign_type == "PERFORMANCE_MAX":
+            allowed_pmax_strategies = [
+                BiddingStrategyType.MAXIMIZE_CONVERSIONS,
+                BiddingStrategyType.MAXIMIZE_CONVERSION_VALUE
+            ]
+            if params.bidding_strategy not in allowed_pmax_strategies:
+                return (
+                    f"Error: Performance Max campaigns only support "
+                    f"MAXIMIZE_CONVERSIONS or MAXIMIZE_CONVERSION_VALUE. "
+                    f"You requested: {params.bidding_strategy.value}"
+                )
+
+        # Step 2: Build update operation
+        campaign_service = client.get_service("CampaignService")
+        campaign_operation = client.get_type("CampaignOperation")
+        campaign_to_update = campaign_operation.update
+
+        # Set resource name
+        campaign_to_update.resource_name = f"customers/{customer_id}/campaigns/{params.campaign_id}"
+
+        # Clear existing bidding strategy fields and set new one
+        field_mask_paths = []
+        new_strategy_details = ""
+
+        if params.bidding_strategy == BiddingStrategyType.MANUAL_CPC:
+            campaign_to_update.manual_cpc.enhanced_cpc_enabled = params.enhanced_cpc_enabled
+            field_mask_paths.append("manual_cpc.enhanced_cpc_enabled")
+            new_strategy_details = f"Enhanced CPC: {'Enabled' if params.enhanced_cpc_enabled else 'Disabled'}"
+
+        elif params.bidding_strategy == BiddingStrategyType.MAXIMIZE_CONVERSIONS:
+            # Set maximize_conversions (can optionally have target_cpa)
+            if params.target_cpa_micros:
+                campaign_to_update.maximize_conversions.target_cpa_micros = params.target_cpa_micros
+                field_mask_paths.append("maximize_conversions.target_cpa_micros")
+                new_strategy_details = f"Target CPA: {_format_money_micros(params.target_cpa_micros)}"
+            else:
+                # Just enable maximize conversions without target
+                campaign_to_update.maximize_conversions.CopyFrom(client.get_type("MaximizeConversions"))
+                field_mask_paths.append("maximize_conversions")
+                new_strategy_details = "No target CPA set (uncapped)"
+
+        elif params.bidding_strategy == BiddingStrategyType.MAXIMIZE_CONVERSION_VALUE:
+            if params.target_roas:
+                campaign_to_update.maximize_conversion_value.target_roas = params.target_roas
+                field_mask_paths.append("maximize_conversion_value.target_roas")
+                new_strategy_details = f"Target ROAS: {params.target_roas * 100:.0f}%"
+            else:
+                campaign_to_update.maximize_conversion_value.CopyFrom(client.get_type("MaximizeConversionValue"))
+                field_mask_paths.append("maximize_conversion_value")
+                new_strategy_details = "No target ROAS set (uncapped)"
+
+        elif params.bidding_strategy == BiddingStrategyType.TARGET_CPA:
+            campaign_to_update.target_cpa.target_cpa_micros = params.target_cpa_micros
+            field_mask_paths.append("target_cpa.target_cpa_micros")
+            new_strategy_details = f"Target CPA: {_format_money_micros(params.target_cpa_micros)}"
+
+        elif params.bidding_strategy == BiddingStrategyType.TARGET_ROAS:
+            campaign_to_update.target_roas.target_roas = params.target_roas
+            field_mask_paths.append("target_roas.target_roas")
+            new_strategy_details = f"Target ROAS: {params.target_roas * 100:.0f}%"
+
+        elif params.bidding_strategy == BiddingStrategyType.TARGET_SPEND:
+            campaign_to_update.target_spend.CopyFrom(client.get_type("TargetSpend"))
+            field_mask_paths.append("target_spend")
+            new_strategy_details = "Maximize clicks within budget"
+
+        else:
+            return f"Error: Bidding strategy {params.bidding_strategy.value} is not yet supported for updates"
+
+        # Set field mask
+        client.copy_from(
+            campaign_operation.update_mask,
+            client.get_type("FieldMask")(paths=field_mask_paths)
+        )
+
+        # Execute update
+        response = campaign_service.mutate_campaigns(
+            customer_id=customer_id,
+            operations=[campaign_operation]
+        )
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            result = f"""## Bidding Strategy Updated Successfully!
+
+**Campaign**: {campaign.name} ({params.campaign_id})
+**Campaign Type**: {campaign_type}
+
+| Setting | Before | After |
+|---------|--------|-------|
+| Strategy | {old_strategy} | {params.bidding_strategy.value} |
+| Details | - | {new_strategy_details} |
+
+### Important Notes
+- ⏱️ **Learning Period**: Bidding strategy changes reset the learning period (24-48 hours)
+- 📊 **Monitor Performance**: Watch metrics closely during the transition
+- ⚡ **Optimization**: Full optimization may take 1-2 weeks
+
+### Recommended Actions
+1. Set appropriate conversion goals
+2. Ensure conversion tracking is working
+3. Review performance after 7 days
+"""
+            return result
+
+        else:  # JSON
+            return json.dumps({
+                "success": True,
+                "campaign_id": params.campaign_id,
+                "campaign_name": campaign.name,
+                "campaign_type": campaign_type,
+                "old_strategy": old_strategy,
+                "new_strategy": params.bidding_strategy.value,
+                "strategy_details": new_strategy_details,
+                "resource_name": response.results[0].resource_name
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# AD EXTENSIONS TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_create_sitelinks",
+    annotations={
+        "title": "Create Sitelink Extensions",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def google_ads_create_sitelinks(params: CreateSitelinksInput) -> str:
+    """
+    Create sitelink extensions and attach them to a campaign or ad group.
+
+    Sitelinks are additional links that appear below your ad, directing users
+    to specific pages on your website. They improve CTR and ad visibility.
+
+    Args:
+        params (CreateSitelinksInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - sitelinks (List[SitelinkInput]): List of sitelinks (1-20), each with:
+                - link_text (str): Display text (max 25 chars)
+                - final_urls (List[str]): Landing page URLs
+                - description1 (Optional[str]): First description (max 35 chars)
+                - description2 (Optional[str]): Second description (max 35 chars)
+            - campaign_id (Optional[str]): Campaign to attach sitelinks
+            - ad_group_id (Optional[str]): Ad group to attach sitelinks
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success message with created sitelink details
+
+    Examples:
+        - "Add sitelinks for Products, About Us, Contact pages"
+        - "Create sitelinks with descriptions for campaign 123456"
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        asset_service = client.get_service("AssetService")
+        campaign_asset_service = client.get_service("CampaignAssetService")
+        ad_group_asset_service = client.get_service("AdGroupAssetService")
+
+        created_assets = []
+        asset_resource_names = []
+
+        # Step 1: Create sitelink assets
+        for sitelink in params.sitelinks:
+            asset_operation = client.get_type("AssetOperation")
+            asset = asset_operation.create
+
+            # Set sitelink asset data
+            asset.sitelink_asset.link_text = sitelink.link_text
+            asset.sitelink_asset.final_urls.append(sitelink.final_urls[0])
+
+            if sitelink.description1:
+                asset.sitelink_asset.description1 = sitelink.description1
+            if sitelink.description2:
+                asset.sitelink_asset.description2 = sitelink.description2
+
+            # Create the asset
+            response = asset_service.mutate_assets(
+                customer_id=customer_id,
+                operations=[asset_operation]
+            )
+
+            asset_resource_name = response.results[0].resource_name
+            asset_resource_names.append(asset_resource_name)
+            created_assets.append({
+                "link_text": sitelink.link_text,
+                "url": sitelink.final_urls[0],
+                "resource_name": asset_resource_name
+            })
+
+        # Step 2: Link assets to campaign or ad group
+        link_operations = []
+
+        if params.campaign_id:
+            # Link to campaign
+            campaign_resource = f"customers/{customer_id}/campaigns/{params.campaign_id}"
+
+            for asset_resource_name in asset_resource_names:
+                link_operation = client.get_type("CampaignAssetOperation")
+                campaign_asset = link_operation.create
+                campaign_asset.campaign = campaign_resource
+                campaign_asset.asset = asset_resource_name
+                campaign_asset.field_type = client.enums.AssetFieldTypeEnum.SITELINK
+                link_operations.append(link_operation)
+
+            campaign_asset_service.mutate_campaign_assets(
+                customer_id=customer_id,
+                operations=link_operations
+            )
+            attach_level = f"Campaign {params.campaign_id}"
+
+        else:
+            # Link to ad group
+            ad_group_resource = f"customers/{customer_id}/adGroups/{params.ad_group_id}"
+
+            for asset_resource_name in asset_resource_names:
+                link_operation = client.get_type("AdGroupAssetOperation")
+                ad_group_asset = link_operation.create
+                ad_group_asset.ad_group = ad_group_resource
+                ad_group_asset.asset = asset_resource_name
+                ad_group_asset.field_type = client.enums.AssetFieldTypeEnum.SITELINK
+                link_operations.append(link_operation)
+
+            ad_group_asset_service.mutate_ad_group_assets(
+                customer_id=customer_id,
+                operations=link_operations
+            )
+            attach_level = f"Ad Group {params.ad_group_id}"
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            sitelink_rows = "\n".join([
+                f"| {s['link_text']} | {s['url']} | ✅ |"
+                for s in created_assets
+            ])
+
+            return f"""## Sitelinks Created Successfully!
+
+**Attached to**: {attach_level}
+**Total Sitelinks**: {len(created_assets)}
+
+### Created Sitelinks
+
+| Link Text | URL | Status |
+|-----------|-----|--------|
+{sitelink_rows}
+
+### Best Practices
+- Use at least 4 sitelinks for best performance
+- Include relevant descriptions for higher CTR
+- Test different sitelinks to find top performers
+- Ensure landing pages match the sitelink text
+"""
+        else:
+            return json.dumps({
+                "success": True,
+                "attach_level": attach_level,
+                "campaign_id": params.campaign_id,
+                "ad_group_id": params.ad_group_id,
+                "sitelinks_created": len(created_assets),
+                "sitelinks": created_assets
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_create_callouts",
+    annotations={
+        "title": "Create Callout Extensions",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def google_ads_create_callouts(params: CreateCalloutsInput) -> str:
+    """
+    Create callout extensions and attach them to a campaign or ad group.
+
+    Callouts are short phrases that highlight key selling points or features.
+    They appear alongside your ad text to provide additional information.
+
+    Args:
+        params (CreateCalloutsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - callouts (List[str]): Callout texts (1-20, max 25 chars each)
+            - campaign_id (Optional[str]): Campaign to attach callouts
+            - ad_group_id (Optional[str]): Ad group to attach callouts
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success message with created callout details
+
+    Examples:
+        - "Add callouts: Free Shipping, 24/7 Support, 30-Day Returns"
+        - "Create callouts for campaign 123456"
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        asset_service = client.get_service("AssetService")
+        campaign_asset_service = client.get_service("CampaignAssetService")
+        ad_group_asset_service = client.get_service("AdGroupAssetService")
+
+        created_assets = []
+        asset_resource_names = []
+
+        # Step 1: Create callout assets
+        for callout_text in params.callouts:
+            asset_operation = client.get_type("AssetOperation")
+            asset = asset_operation.create
+
+            # Set callout asset data
+            asset.callout_asset.callout_text = callout_text
+
+            # Create the asset
+            response = asset_service.mutate_assets(
+                customer_id=customer_id,
+                operations=[asset_operation]
+            )
+
+            asset_resource_name = response.results[0].resource_name
+            asset_resource_names.append(asset_resource_name)
+            created_assets.append({
+                "text": callout_text,
+                "resource_name": asset_resource_name
+            })
+
+        # Step 2: Link assets to campaign or ad group
+        link_operations = []
+
+        if params.campaign_id:
+            # Link to campaign
+            campaign_resource = f"customers/{customer_id}/campaigns/{params.campaign_id}"
+
+            for asset_resource_name in asset_resource_names:
+                link_operation = client.get_type("CampaignAssetOperation")
+                campaign_asset = link_operation.create
+                campaign_asset.campaign = campaign_resource
+                campaign_asset.asset = asset_resource_name
+                campaign_asset.field_type = client.enums.AssetFieldTypeEnum.CALLOUT
+                link_operations.append(link_operation)
+
+            campaign_asset_service.mutate_campaign_assets(
+                customer_id=customer_id,
+                operations=link_operations
+            )
+            attach_level = f"Campaign {params.campaign_id}"
+
+        else:
+            # Link to ad group
+            ad_group_resource = f"customers/{customer_id}/adGroups/{params.ad_group_id}"
+
+            for asset_resource_name in asset_resource_names:
+                link_operation = client.get_type("AdGroupAssetOperation")
+                ad_group_asset = link_operation.create
+                ad_group_asset.ad_group = ad_group_resource
+                ad_group_asset.asset = asset_resource_name
+                ad_group_asset.field_type = client.enums.AssetFieldTypeEnum.CALLOUT
+                link_operations.append(link_operation)
+
+            ad_group_asset_service.mutate_ad_group_assets(
+                customer_id=customer_id,
+                operations=link_operations
+            )
+            attach_level = f"Ad Group {params.ad_group_id}"
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            callout_list = "\n".join([f"- {c['text']}" for c in created_assets])
+
+            return f"""## Callouts Created Successfully!
+
+**Attached to**: {attach_level}
+**Total Callouts**: {len(created_assets)}
+
+### Created Callouts
+{callout_list}
+
+### Best Practices
+- Use 4-6 callouts for optimal display
+- Highlight unique selling points
+- Keep callouts specific and benefit-focused
+- Test different variations
+"""
+        else:
+            return json.dumps({
+                "success": True,
+                "attach_level": attach_level,
+                "campaign_id": params.campaign_id,
+                "ad_group_id": params.ad_group_id,
+                "callouts_created": len(created_assets),
+                "callouts": created_assets
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_create_structured_snippets",
+    annotations={
+        "title": "Create Structured Snippet Extensions",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def google_ads_create_structured_snippets(params: CreateStructuredSnippetsInput) -> str:
+    """
+    Create structured snippet extensions and attach them to a campaign or ad group.
+
+    Structured snippets highlight specific aspects of your products or services
+    using predefined headers (e.g., Brands, Services, Types).
+
+    Args:
+        params (CreateStructuredSnippetsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - header (StructuredSnippetHeader): Header type (BRANDS, SERVICES, etc.)
+            - values (List[str]): Snippet values (3-10 items, max 25 chars each)
+            - campaign_id (Optional[str]): Campaign to attach snippets
+            - ad_group_id (Optional[str]): Ad group to attach snippets
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success message with created snippet details
+
+    Examples:
+        - "Add structured snippets for Brands: Nike, Adidas, Puma"
+        - "Create Services snippets: Consulting, Training, Support"
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        asset_service = client.get_service("AssetService")
+        campaign_asset_service = client.get_service("CampaignAssetService")
+        ad_group_asset_service = client.get_service("AdGroupAssetService")
+
+        # Step 1: Create structured snippet asset
+        asset_operation = client.get_type("AssetOperation")
+        asset = asset_operation.create
+
+        # Set structured snippet data
+        asset.structured_snippet_asset.header = params.header.value
+        for value in params.values:
+            asset.structured_snippet_asset.values.append(value)
+
+        # Create the asset
+        response = asset_service.mutate_assets(
+            customer_id=customer_id,
+            operations=[asset_operation]
+        )
+
+        asset_resource_name = response.results[0].resource_name
+
+        # Step 2: Link asset to campaign or ad group
+        if params.campaign_id:
+            # Link to campaign
+            campaign_resource = f"customers/{customer_id}/campaigns/{params.campaign_id}"
+
+            link_operation = client.get_type("CampaignAssetOperation")
+            campaign_asset = link_operation.create
+            campaign_asset.campaign = campaign_resource
+            campaign_asset.asset = asset_resource_name
+            campaign_asset.field_type = client.enums.AssetFieldTypeEnum.STRUCTURED_SNIPPET
+
+            campaign_asset_service.mutate_campaign_assets(
+                customer_id=customer_id,
+                operations=[link_operation]
+            )
+            attach_level = f"Campaign {params.campaign_id}"
+
+        else:
+            # Link to ad group
+            ad_group_resource = f"customers/{customer_id}/adGroups/{params.ad_group_id}"
+
+            link_operation = client.get_type("AdGroupAssetOperation")
+            ad_group_asset = link_operation.create
+            ad_group_asset.ad_group = ad_group_resource
+            ad_group_asset.asset = asset_resource_name
+            ad_group_asset.field_type = client.enums.AssetFieldTypeEnum.STRUCTURED_SNIPPET
+
+            ad_group_asset_service.mutate_ad_group_assets(
+                customer_id=customer_id,
+                operations=[link_operation]
+            )
+            attach_level = f"Ad Group {params.ad_group_id}"
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            values_list = ", ".join(params.values)
+
+            return f"""## Structured Snippet Created Successfully!
+
+**Attached to**: {attach_level}
+**Header**: {params.header.value}
+**Values**: {values_list}
+
+### Snippet Preview
+**{params.header.value}**: {values_list}
+
+### Best Practices
+- Use 4+ values for better visibility
+- Ensure values match the header type
+- Keep values relevant to your business
+- Test different header types to find what works
+"""
+        else:
+            return json.dumps({
+                "success": True,
+                "attach_level": attach_level,
+                "campaign_id": params.campaign_id,
+                "ad_group_id": params.ad_group_id,
+                "header": params.header.value,
+                "values": params.values,
+                "asset_resource_name": asset_resource_name
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_list_extensions",
+    annotations={
+        "title": "List Ad Extensions",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def google_ads_list_extensions(params: ListExtensionsInput) -> str:
+    """
+    List ad extensions (sitelinks, callouts, structured snippets) for an account.
+
+    Shows all extensions attached at campaign or ad group level with their
+    status and details.
+
+    Args:
+        params (ListExtensionsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (Optional[str]): Filter by campaign
+            - ad_group_id (Optional[str]): Filter by ad group
+            - extension_type (Optional[ExtensionType]): Filter by type
+            - limit (int): Maximum extensions to return (default: 50)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: List of extensions with details
+
+    Examples:
+        - "List all extensions for account"
+        - "Show sitelinks for campaign 123456"
+        - "Get callouts for ad group 789"
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        ga_service = client.get_service("GoogleAdsService")
+
+        extensions_data = {
+            "sitelinks": [],
+            "callouts": [],
+            "structured_snippets": []
+        }
+
+        # Query campaign-level assets
+        if not params.ad_group_id:  # Include campaign level if not filtering by ad group only
+            campaign_query = f"""
+                SELECT
+                    campaign.id,
+                    campaign.name,
+                    campaign_asset.asset,
+                    campaign_asset.field_type,
+                    campaign_asset.status,
+                    asset.id,
+                    asset.name,
+                    asset.type,
+                    asset.sitelink_asset.link_text,
+                    asset.sitelink_asset.description1,
+                    asset.sitelink_asset.description2,
+                    asset.callout_asset.callout_text,
+                    asset.structured_snippet_asset.header,
+                    asset.structured_snippet_asset.values
+                FROM campaign_asset
+                WHERE campaign_asset.field_type IN ('SITELINK', 'CALLOUT', 'STRUCTURED_SNIPPET')
+            """
+
+            if params.campaign_id:
+                campaign_query += f" AND campaign.id = {params.campaign_id}"
+
+            if params.extension_type:
+                campaign_query += f" AND campaign_asset.field_type = '{params.extension_type.value}'"
+
+            campaign_query += f" LIMIT {params.limit}"
+
+            try:
+                stream = ga_service.search_stream(customer_id=customer_id, query=campaign_query)
+                for batch in stream:
+                    for row in batch.results:
+                        field_type = str(row.campaign_asset.field_type.name)
+                        ext_data = {
+                            "level": "CAMPAIGN",
+                            "campaign_id": str(row.campaign.id),
+                            "campaign_name": row.campaign.name,
+                            "asset_id": str(row.asset.id),
+                            "status": str(row.campaign_asset.status.name)
+                        }
+
+                        if field_type == "SITELINK":
+                            ext_data["link_text"] = row.asset.sitelink_asset.link_text
+                            ext_data["description1"] = row.asset.sitelink_asset.description1
+                            ext_data["description2"] = row.asset.sitelink_asset.description2
+                            extensions_data["sitelinks"].append(ext_data)
+
+                        elif field_type == "CALLOUT":
+                            ext_data["callout_text"] = row.asset.callout_asset.callout_text
+                            extensions_data["callouts"].append(ext_data)
+
+                        elif field_type == "STRUCTURED_SNIPPET":
+                            ext_data["header"] = row.asset.structured_snippet_asset.header
+                            ext_data["values"] = list(row.asset.structured_snippet_asset.values)
+                            extensions_data["structured_snippets"].append(ext_data)
+            except Exception:
+                pass  # No campaign-level extensions found
+
+        # Query ad group-level assets
+        if not params.campaign_id or params.ad_group_id:  # Include ad group level if not filtering by campaign only
+            ad_group_query = f"""
+                SELECT
+                    ad_group.id,
+                    ad_group.name,
+                    ad_group.campaign,
+                    ad_group_asset.asset,
+                    ad_group_asset.field_type,
+                    ad_group_asset.status,
+                    asset.id,
+                    asset.name,
+                    asset.type,
+                    asset.sitelink_asset.link_text,
+                    asset.sitelink_asset.description1,
+                    asset.sitelink_asset.description2,
+                    asset.callout_asset.callout_text,
+                    asset.structured_snippet_asset.header,
+                    asset.structured_snippet_asset.values
+                FROM ad_group_asset
+                WHERE ad_group_asset.field_type IN ('SITELINK', 'CALLOUT', 'STRUCTURED_SNIPPET')
+            """
+
+            if params.ad_group_id:
+                ad_group_query += f" AND ad_group.id = {params.ad_group_id}"
+
+            if params.extension_type:
+                ad_group_query += f" AND ad_group_asset.field_type = '{params.extension_type.value}'"
+
+            ad_group_query += f" LIMIT {params.limit}"
+
+            try:
+                stream = ga_service.search_stream(customer_id=customer_id, query=ad_group_query)
+                for batch in stream:
+                    for row in batch.results:
+                        field_type = str(row.ad_group_asset.field_type.name)
+                        ext_data = {
+                            "level": "AD_GROUP",
+                            "ad_group_id": str(row.ad_group.id),
+                            "ad_group_name": row.ad_group.name,
+                            "asset_id": str(row.asset.id),
+                            "status": str(row.ad_group_asset.status.name)
+                        }
+
+                        if field_type == "SITELINK":
+                            ext_data["link_text"] = row.asset.sitelink_asset.link_text
+                            ext_data["description1"] = row.asset.sitelink_asset.description1
+                            ext_data["description2"] = row.asset.sitelink_asset.description2
+                            extensions_data["sitelinks"].append(ext_data)
+
+                        elif field_type == "CALLOUT":
+                            ext_data["callout_text"] = row.asset.callout_asset.callout_text
+                            extensions_data["callouts"].append(ext_data)
+
+                        elif field_type == "STRUCTURED_SNIPPET":
+                            ext_data["header"] = row.asset.structured_snippet_asset.header
+                            ext_data["values"] = list(row.asset.structured_snippet_asset.values)
+                            extensions_data["structured_snippets"].append(ext_data)
+            except Exception:
+                pass  # No ad group-level extensions found
+
+        total_count = (
+            len(extensions_data["sitelinks"]) +
+            len(extensions_data["callouts"]) +
+            len(extensions_data["structured_snippets"])
+        )
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            result = f"## Ad Extensions\n\n**Total Found**: {total_count}\n\n"
+
+            # Sitelinks section
+            if extensions_data["sitelinks"]:
+                result += "### Sitelinks\n\n"
+                result += "| Level | Link Text | Asset ID | Status |\n"
+                result += "|-------|-----------|----------|--------|\n"
+                for s in extensions_data["sitelinks"]:
+                    result += f"| {s['level']} | {s['link_text']} | {s['asset_id']} | {s['status']} |\n"
+                result += "\n"
+
+            # Callouts section
+            if extensions_data["callouts"]:
+                result += "### Callouts\n\n"
+                result += "| Level | Callout Text | Asset ID | Status |\n"
+                result += "|-------|--------------|----------|--------|\n"
+                for c in extensions_data["callouts"]:
+                    result += f"| {c['level']} | {c['callout_text']} | {c['asset_id']} | {c['status']} |\n"
+                result += "\n"
+
+            # Structured Snippets section
+            if extensions_data["structured_snippets"]:
+                result += "### Structured Snippets\n\n"
+                result += "| Level | Header | Values | Asset ID | Status |\n"
+                result += "|-------|--------|--------|----------|--------|\n"
+                for ss in extensions_data["structured_snippets"]:
+                    values_str = ", ".join(ss['values'][:3])
+                    if len(ss['values']) > 3:
+                        values_str += "..."
+                    result += f"| {ss['level']} | {ss['header']} | {values_str} | {ss['asset_id']} | {ss['status']} |\n"
+                result += "\n"
+
+            if total_count == 0:
+                result += "*No extensions found matching the criteria.*\n"
+
+            return result
+
+        else:
+            return json.dumps({
+                "total": total_count,
+                "sitelinks": extensions_data["sitelinks"],
+                "callouts": extensions_data["callouts"],
+                "structured_snippets": extensions_data["structured_snippets"]
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_remove_extension",
+    annotations={
+        "title": "Remove Ad Extension",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def google_ads_remove_extension(params: RemoveExtensionInput) -> str:
+    """
+    Remove an ad extension from a campaign or ad group.
+
+    This removes the link between the asset and the campaign/ad group.
+    The asset itself remains in the account and can be reattached later.
+
+    Args:
+        params (RemoveExtensionInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - asset_id (str): Asset ID to remove
+            - campaign_id (Optional[str]): Campaign ID if campaign-level
+            - ad_group_id (Optional[str]): Ad group ID if ad group-level
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Success confirmation
+
+    Examples:
+        - "Remove extension 123456 from campaign 789"
+        - "Unlink sitelink from ad group"
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        if params.campaign_id:
+            # Remove campaign-level extension
+            campaign_asset_service = client.get_service("CampaignAssetService")
+
+            # First, find the campaign asset to get the correct resource name
+            ga_service = client.get_service("GoogleAdsService")
+            query = f"""
+                SELECT
+                    campaign_asset.resource_name,
+                    campaign_asset.field_type,
+                    asset.sitelink_asset.link_text,
+                    asset.callout_asset.callout_text,
+                    asset.structured_snippet_asset.header
+                FROM campaign_asset
+                WHERE campaign.id = {params.campaign_id}
+                AND asset.id = {params.asset_id}
+            """
+
+            results = list(ga_service.search(customer_id=customer_id, query=query))
+
+            if not results:
+                return f"Error: Extension with asset ID {params.asset_id} not found in campaign {params.campaign_id}"
+
+            resource_name = results[0].campaign_asset.resource_name
+            field_type = str(results[0].campaign_asset.field_type.name)
+
+            # Get extension details for response
+            if field_type == "SITELINK":
+                ext_detail = results[0].asset.sitelink_asset.link_text
+            elif field_type == "CALLOUT":
+                ext_detail = results[0].asset.callout_asset.callout_text
+            elif field_type == "STRUCTURED_SNIPPET":
+                ext_detail = f"Header: {results[0].asset.structured_snippet_asset.header}"
+            else:
+                ext_detail = f"Asset {params.asset_id}"
+
+            # Remove the campaign asset
+            operation = client.get_type("CampaignAssetOperation")
+            operation.remove = resource_name
+
+            campaign_asset_service.mutate_campaign_assets(
+                customer_id=customer_id,
+                operations=[operation]
+            )
+
+            level = f"Campaign {params.campaign_id}"
+
+        else:
+            # Remove ad group-level extension
+            ad_group_asset_service = client.get_service("AdGroupAssetService")
+
+            # First, find the ad group asset to get the correct resource name
+            ga_service = client.get_service("GoogleAdsService")
+            query = f"""
+                SELECT
+                    ad_group_asset.resource_name,
+                    ad_group_asset.field_type,
+                    asset.sitelink_asset.link_text,
+                    asset.callout_asset.callout_text,
+                    asset.structured_snippet_asset.header
+                FROM ad_group_asset
+                WHERE ad_group.id = {params.ad_group_id}
+                AND asset.id = {params.asset_id}
+            """
+
+            results = list(ga_service.search(customer_id=customer_id, query=query))
+
+            if not results:
+                return f"Error: Extension with asset ID {params.asset_id} not found in ad group {params.ad_group_id}"
+
+            resource_name = results[0].ad_group_asset.resource_name
+            field_type = str(results[0].ad_group_asset.field_type.name)
+
+            # Get extension details for response
+            if field_type == "SITELINK":
+                ext_detail = results[0].asset.sitelink_asset.link_text
+            elif field_type == "CALLOUT":
+                ext_detail = results[0].asset.callout_asset.callout_text
+            elif field_type == "STRUCTURED_SNIPPET":
+                ext_detail = f"Header: {results[0].asset.structured_snippet_asset.header}"
+            else:
+                ext_detail = f"Asset {params.asset_id}"
+
+            # Remove the ad group asset
+            operation = client.get_type("AdGroupAssetOperation")
+            operation.remove = resource_name
+
+            ad_group_asset_service.mutate_ad_group_assets(
+                customer_id=customer_id,
+                operations=[operation]
+            )
+
+            level = f"Ad Group {params.ad_group_id}"
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            return f"""## Extension Removed Successfully!
+
+**Extension Type**: {field_type}
+**Details**: {ext_detail}
+**Removed from**: {level}
+**Asset ID**: {params.asset_id}
+
+### Note
+The asset has been unlinked from the {level.lower()}.
+The asset still exists in your account and can be reattached if needed.
+"""
+        else:
+            return json.dumps({
+                "success": True,
+                "extension_type": field_type,
+                "details": ext_detail,
+                "removed_from": level,
+                "asset_id": params.asset_id,
+                "resource_name": resource_name
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# KEYWORD PLANNER TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_get_keyword_ideas",
+    annotations={
+        "title": "Get Keyword Ideas",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def google_ads_get_keyword_ideas(params: GetKeywordIdeasInput) -> str:
+    """
+    Get keyword ideas from Google Keyword Planner.
+
+    Use seed keywords or a URL to discover new keyword opportunities.
+    Returns search volume, competition level, and bid estimates.
+
+    Args:
+        params (GetKeywordIdeasInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - seed_keywords (Optional[List[str]]): Seed keywords (up to 10)
+            - seed_url (Optional[str]): URL to analyze for ideas
+            - geo_target_constants (List[str]): Geo targets (REQUIRED)
+            - language_id (str): Language ID (default: 1000 for English)
+            - include_adult_keywords (bool): Include adult keywords
+            - limit (int): Max results (1-200)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Keyword ideas with metrics
+
+    Examples:
+        - "Get keyword ideas for 'running shoes' in Italy"
+        - "Analyze nike.com for keyword opportunities"
+        - "Find keywords related to 'coffee maker' in USA"
+
+    Note:
+        Common geo targets: 2380 (Italy), 2840 (USA), 2826 (UK), 2276 (Germany)
+        Common language IDs: 1000 (English), 1004 (Italian), 1001 (German)
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
+
+        # Build request
+        request = client.get_type("GenerateKeywordIdeasRequest")
+        request.customer_id = customer_id
+        request.language = f"languageConstants/{params.language_id}"
+
+        # Add geo targets
+        for geo_id in params.geo_target_constants:
+            request.geo_target_constants.append(f"geoTargetConstants/{geo_id}")
+
+        # Set keyword seed
+        if params.seed_keywords:
+            request.keyword_seed.keywords.extend(params.seed_keywords)
+
+        if params.seed_url:
+            request.url_seed.url = params.seed_url
+
+        # Include adult keywords
+        request.include_adult_keywords = params.include_adult_keywords
+
+        # Execute request
+        keyword_ideas = keyword_plan_idea_service.generate_keyword_ideas(request=request)
+
+        # Collect results
+        ideas = []
+        count = 0
+        for idea in keyword_ideas:
+            if count >= params.limit:
+                break
+
+            metrics = idea.keyword_idea_metrics
+
+            # Get competition level
+            competition = "UNKNOWN"
+            if hasattr(metrics, 'competition') and metrics.competition:
+                competition = metrics.competition.name
+
+            idea_data = {
+                "keyword": idea.text,
+                "avg_monthly_searches": metrics.avg_monthly_searches if hasattr(metrics, 'avg_monthly_searches') else 0,
+                "competition": competition,
+                "competition_index": metrics.competition_index if hasattr(metrics, 'competition_index') else None,
+                "low_top_of_page_bid_micros": metrics.low_top_of_page_bid_micros if hasattr(metrics, 'low_top_of_page_bid_micros') else None,
+                "high_top_of_page_bid_micros": metrics.high_top_of_page_bid_micros if hasattr(metrics, 'high_top_of_page_bid_micros') else None,
+            }
+            ideas.append(idea_data)
+            count += 1
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            # Build markdown response
+            md = f"""## Keyword Ideas
+
+**Seeds**: {', '.join(params.seed_keywords) if params.seed_keywords else params.seed_url}
+**Geo Targets**: {', '.join(params.geo_target_constants)}
+**Language ID**: {params.language_id}
+**Results**: {len(ideas)} keyword ideas
+
+### Top Keywords
+
+| Keyword | Avg. Monthly Searches | Competition | Low CPC | High CPC |
+|---------|----------------------|-------------|---------|----------|
+"""
+            for idea in ideas[:50]:  # Show top 50 in markdown
+                low_cpc = f"${idea['low_top_of_page_bid_micros'] / 1_000_000:.2f}" if idea['low_top_of_page_bid_micros'] else "N/A"
+                high_cpc = f"${idea['high_top_of_page_bid_micros'] / 1_000_000:.2f}" if idea['high_top_of_page_bid_micros'] else "N/A"
+                md += f"| {idea['keyword']} | {idea['avg_monthly_searches']:,} | {idea['competition']} | {low_cpc} | {high_cpc} |\n"
+
+            md += """
+### Tips
+- Higher search volume = more potential traffic
+- Lower competition = easier to rank/bid
+- Low/High CPC = estimated cost per click range
+- Consider long-tail keywords for lower competition
+"""
+            return md
+        else:
+            return json.dumps({
+                "seeds": params.seed_keywords or [params.seed_url],
+                "geo_targets": params.geo_target_constants,
+                "language_id": params.language_id,
+                "total_ideas": len(ideas),
+                "ideas": ideas
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_get_keyword_forecasts",
+    annotations={
+        "title": "Get Keyword Forecasts",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def google_ads_get_keyword_forecasts(params: GetKeywordForecastsInput) -> str:
+    """
+    Get performance forecasts for keywords.
+
+    Predicts clicks, impressions, cost, and conversions for a set of keywords
+    based on your specified budget and targeting.
+
+    Args:
+        params (GetKeywordForecastsInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - keywords (List[KeywordForecastItem]): Keywords to forecast (1-50)
+            - daily_budget_micros (int): Daily budget in micros for forecast
+            - geo_target_constants (List[str]): Geo targets (REQUIRED)
+            - language_id (str): Language ID
+            - forecast_days (int): Days to forecast (1-365)
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Forecast metrics for keywords
+
+    Examples:
+        - "Forecast 'running shoes', 'athletic footwear' with $50/day budget"
+        - "What clicks can I expect for these keywords in Italy?"
+        - "Project 30-day performance for my keyword list"
+
+    Note:
+        Forecasts are estimates based on historical data and may vary.
+        Creates temporary keyword plan internally (auto-deleted).
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        keyword_plan_service = client.get_service("KeywordPlanService")
+        keyword_plan_campaign_service = client.get_service("KeywordPlanCampaignService")
+        keyword_plan_ad_group_service = client.get_service("KeywordPlanAdGroupService")
+        keyword_plan_ad_group_keyword_service = client.get_service("KeywordPlanAdGroupKeywordService")
+
+        # Step 1: Create temporary keyword plan
+        keyword_plan_operation = client.get_type("KeywordPlanOperation")
+        keyword_plan = keyword_plan_operation.create
+        keyword_plan.name = f"Temp_Forecast_Plan_{int(__import__('time').time())}"
+        keyword_plan.forecast_period.date_interval = client.enums.KeywordPlanForecastIntervalEnum.NEXT_MONTH
+
+        plan_response = keyword_plan_service.mutate_keyword_plans(
+            customer_id=customer_id,
+            operations=[keyword_plan_operation]
+        )
+        keyword_plan_resource = plan_response.results[0].resource_name
+
+        try:
+            # Step 2: Create keyword plan campaign
+            campaign_operation = client.get_type("KeywordPlanCampaignOperation")
+            campaign = campaign_operation.create
+            campaign.name = "Forecast_Campaign"
+            campaign.keyword_plan = keyword_plan_resource
+            campaign.cpc_bid_micros = 1000000  # $1 default bid
+
+            # Add geo targets
+            for geo_id in params.geo_target_constants:
+                geo_target = client.get_type("KeywordPlanGeoTarget")
+                geo_target.geo_target_constant = f"geoTargetConstants/{geo_id}"
+                campaign.geo_targets.append(geo_target)
+
+            # Set language
+            campaign.language_constants.append(f"languageConstants/{params.language_id}")
+
+            campaign_response = keyword_plan_campaign_service.mutate_keyword_plan_campaigns(
+                customer_id=customer_id,
+                operations=[campaign_operation]
+            )
+            campaign_resource = campaign_response.results[0].resource_name
+
+            # Step 3: Create keyword plan ad group
+            ad_group_operation = client.get_type("KeywordPlanAdGroupOperation")
+            ad_group = ad_group_operation.create
+            ad_group.name = "Forecast_AdGroup"
+            ad_group.keyword_plan_campaign = campaign_resource
+            ad_group.cpc_bid_micros = 1000000  # $1 default bid
+
+            ad_group_response = keyword_plan_ad_group_service.mutate_keyword_plan_ad_groups(
+                customer_id=customer_id,
+                operations=[ad_group_operation]
+            )
+            ad_group_resource = ad_group_response.results[0].resource_name
+
+            # Step 4: Add keywords
+            keyword_operations = []
+            for kw in params.keywords:
+                kw_operation = client.get_type("KeywordPlanAdGroupKeywordOperation")
+                keyword = kw_operation.create
+                keyword.keyword_plan_ad_group = ad_group_resource
+                keyword.text = kw.text
+                keyword.match_type = getattr(
+                    client.enums.KeywordMatchTypeEnum,
+                    kw.match_type.value
+                )
+                keyword.cpc_bid_micros = 1000000  # $1 default bid
+                keyword_operations.append(kw_operation)
+
+            keyword_plan_ad_group_keyword_service.mutate_keyword_plan_ad_group_keywords(
+                customer_id=customer_id,
+                operations=keyword_operations
+            )
+
+            # Step 5: Generate forecast
+            forecast_response = keyword_plan_service.generate_forecast_metrics(
+                keyword_plan=keyword_plan_resource
+            )
+
+            # Parse forecast results
+            campaign_forecasts = []
+            if forecast_response.campaign_forecasts:
+                for cf in forecast_response.campaign_forecasts:
+                    metrics = cf.campaign_forecast
+                    forecast_data = {
+                        "impressions": metrics.impressions if hasattr(metrics, 'impressions') else 0,
+                        "clicks": metrics.clicks if hasattr(metrics, 'clicks') else 0,
+                        "cost_micros": metrics.cost_micros if hasattr(metrics, 'cost_micros') else 0,
+                        "conversions": metrics.conversions if hasattr(metrics, 'conversions') else 0,
+                        "ctr": (metrics.clicks / metrics.impressions * 100) if hasattr(metrics, 'impressions') and metrics.impressions > 0 else 0,
+                        "avg_cpc_micros": (metrics.cost_micros / metrics.clicks) if hasattr(metrics, 'clicks') and metrics.clicks > 0 else 0,
+                    }
+                    campaign_forecasts.append(forecast_data)
+
+            # Aggregate forecast
+            total_forecast = {
+                "impressions": sum(f["impressions"] for f in campaign_forecasts) if campaign_forecasts else 0,
+                "clicks": sum(f["clicks"] for f in campaign_forecasts) if campaign_forecasts else 0,
+                "cost_micros": sum(f["cost_micros"] for f in campaign_forecasts) if campaign_forecasts else 0,
+                "conversions": sum(f["conversions"] for f in campaign_forecasts) if campaign_forecasts else 0,
+            }
+
+            if total_forecast["impressions"] > 0:
+                total_forecast["ctr"] = total_forecast["clicks"] / total_forecast["impressions"] * 100
+            else:
+                total_forecast["ctr"] = 0
+
+            if total_forecast["clicks"] > 0:
+                total_forecast["avg_cpc"] = total_forecast["cost_micros"] / total_forecast["clicks"] / 1_000_000
+            else:
+                total_forecast["avg_cpc"] = 0
+
+        finally:
+            # Step 6: Delete temporary keyword plan
+            delete_operation = client.get_type("KeywordPlanOperation")
+            delete_operation.remove = keyword_plan_resource
+            keyword_plan_service.mutate_keyword_plans(
+                customer_id=customer_id,
+                operations=[delete_operation]
+            )
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            return f"""## Keyword Forecast Results
+
+**Keywords Analyzed**: {len(params.keywords)}
+**Daily Budget**: ${params.daily_budget_micros / 1_000_000:.2f}
+**Forecast Period**: {params.forecast_days} days
+**Geo Targets**: {', '.join(params.geo_target_constants)}
+
+### Predicted Performance
+
+| Metric | Value |
+|--------|-------|
+| **Impressions** | {total_forecast['impressions']:,.0f} |
+| **Clicks** | {total_forecast['clicks']:,.0f} |
+| **CTR** | {total_forecast['ctr']:.2f}% |
+| **Total Cost** | ${total_forecast['cost_micros'] / 1_000_000:,.2f} |
+| **Avg. CPC** | ${total_forecast['avg_cpc']:.2f} |
+| **Conversions** | {total_forecast['conversions']:,.1f} |
+
+### Keywords Analyzed
+
+| Keyword | Match Type |
+|---------|------------|
+""" + "\n".join([f"| {kw.text} | {kw.match_type.value} |" for kw in params.keywords]) + """
+
+### Notes
+- Forecasts are estimates based on historical data
+- Actual performance may vary based on ad quality and competition
+- Conversion estimates depend on your conversion tracking setup
+"""
+        else:
+            return json.dumps({
+                "keywords_analyzed": len(params.keywords),
+                "daily_budget_micros": params.daily_budget_micros,
+                "forecast_days": params.forecast_days,
+                "geo_targets": params.geo_target_constants,
+                "forecast": total_forecast,
+                "keywords": [{"text": kw.text, "match_type": kw.match_type.value} for kw in params.keywords]
+            }, indent=2)
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+@mcp.tool(
+    name="google_ads_simulate_campaign_budget",
+    annotations={
+        "title": "Simulate Campaign Budget",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def google_ads_simulate_campaign_budget(params: SimulateCampaignBudgetInput) -> str:
+    """
+    Simulate different budget scenarios for an existing campaign.
+
+    Shows how changing your budget would affect clicks, impressions, and cost
+    based on Google's campaign simulation data.
+
+    Args:
+        params (SimulateCampaignBudgetInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_id (str): Campaign ID to simulate
+            - budget_scenarios_micros (List[int]): Budget amounts to simulate
+            - response_format (ResponseFormat): Output format
+
+    Returns:
+        str: Simulation results showing predicted performance at each budget level
+
+    Examples:
+        - "What if I increase campaign 123's budget to $100/day?"
+        - "Compare performance at $50, $75, $100 daily budgets"
+        - "Simulate budget scenarios for my search campaign"
+
+    Note:
+        Requires campaign to have sufficient historical data (usually 7+ days).
+        Simulations are estimates and actual performance may vary.
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        ga_service = client.get_service("GoogleAdsService")
+
+        # Query campaign simulation data
+        query = f"""
+            SELECT
+                campaign_simulation.campaign_id,
+                campaign_simulation.type,
+                campaign_simulation.modification_method,
+                campaign_simulation.start_date,
+                campaign_simulation.end_date,
+                campaign_simulation.budget_point_list.points
+            FROM campaign_simulation
+            WHERE campaign_simulation.campaign_id = '{params.campaign_id}'
+                AND campaign_simulation.type = BUDGET
+            ORDER BY campaign_simulation.start_date DESC
+            LIMIT 1
+        """
+
+        try:
+            response = ga_service.search(customer_id=customer_id, query=query)
+
+            simulation_data = None
+            for row in response:
+                simulation_data = row.campaign_simulation
+                break
+
+            if not simulation_data:
+                return "No simulation data available for this campaign. Campaigns need at least 7 days of activity to generate simulations."
+
+            # Parse simulation points
+            points = []
+            if hasattr(simulation_data, 'budget_point_list') and simulation_data.budget_point_list.points:
+                for point in simulation_data.budget_point_list.points:
+                    point_data = {
+                        "budget_micros": point.budget_micros,
+                        "budget_dollars": point.budget_micros / 1_000_000,
+                        "clicks": point.clicks if hasattr(point, 'clicks') else 0,
+                        "impressions": point.impressions if hasattr(point, 'impressions') else 0,
+                        "cost_micros": point.cost_micros if hasattr(point, 'cost_micros') else 0,
+                        "conversions": point.conversions if hasattr(point, 'conversions') else 0,
+                    }
+                    points.append(point_data)
+
+            # Find closest simulated values for requested budgets
+            results = []
+            for target_budget in params.budget_scenarios_micros:
+                # Find the closest point
+                closest = min(points, key=lambda p: abs(p["budget_micros"] - target_budget)) if points else None
+
+                if closest:
+                    results.append({
+                        "target_budget_micros": target_budget,
+                        "target_budget_dollars": target_budget / 1_000_000,
+                        "simulated_budget_dollars": closest["budget_dollars"],
+                        "predicted_clicks": closest["clicks"],
+                        "predicted_impressions": closest["impressions"],
+                        "predicted_cost_dollars": closest["cost_micros"] / 1_000_000,
+                        "predicted_conversions": closest["conversions"],
+                    })
+
+            if params.response_format == ResponseFormat.MARKDOWN:
+                md = f"""## Budget Simulation Results
+
+**Campaign ID**: {params.campaign_id}
+**Simulation Period**: {simulation_data.start_date} to {simulation_data.end_date}
+
+### Budget Scenarios
+
+| Daily Budget | Clicks | Impressions | Est. Cost | Conversions |
+|-------------|--------|-------------|-----------|-------------|
+"""
+                for r in results:
+                    md += f"| ${r['target_budget_dollars']:.2f} | {r['predicted_clicks']:,.0f} | {r['predicted_impressions']:,.0f} | ${r['predicted_cost_dollars']:.2f} | {r['predicted_conversions']:.1f} |\n"
+
+                md += """
+### How to Use This Data
+- **Increase budget**: If you're limited by budget, increasing it can capture more clicks
+- **Diminishing returns**: Higher budgets may have lower incremental ROI
+- **Optimize first**: Before increasing budget, ensure your ads/keywords are optimized
+- **Test gradually**: Make budget changes incrementally to monitor actual impact
+"""
+                return md
+            else:
+                return json.dumps({
+                    "campaign_id": params.campaign_id,
+                    "simulation_period": {
+                        "start_date": simulation_data.start_date,
+                        "end_date": simulation_data.end_date
+                    },
+                    "scenarios": results,
+                    "available_data_points": len(points)
+                }, indent=2)
+
+        except Exception as e:
+            error_str = str(e)
+            if "NOT_FOUND" in error_str or "no rows" in error_str.lower():
+                return f"""## No Simulation Data Available
+
+**Campaign ID**: {params.campaign_id}
+
+Campaign simulations require:
+1. Campaign to be active for at least 7 days
+2. Sufficient impression/click data
+3. Search or Shopping campaign type
+
+**Alternatives:**
+- Use `google_ads_get_keyword_forecasts` for keyword-level projections
+- Check campaign performance history with `google_ads_get_campaign_insights`
+"""
+            raise
+
+    except Exception as e:
+        return _handle_google_ads_error(e)
+
+
+# ============================================================================
+# PMAX CAMPAIGN CREATION TOOLS
+# ============================================================================
+
+@mcp.tool(
+    name="google_ads_create_pmax_campaign",
+    annotations={
+        "title": "Create Performance Max Campaign",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def google_ads_create_pmax_campaign(params: CreatePmaxCampaignInput) -> str:
+    """
+    Create a complete Performance Max campaign with asset group.
+
+    Creates a PMAX campaign with budget, bidding strategy, asset group with
+    text assets, and geo targeting. Created in PAUSED status by default.
+
+    Args:
+        params (CreatePmaxCampaignInput): Input parameters containing:
+            - customer_id (str): 10-digit customer ID
+            - campaign_name (str): Campaign name
+            - daily_budget_micros (int): Daily budget in micros
+            - final_urls (List[str]): Landing page URLs (1-10)
+            - headlines (List[str]): Headlines (3-15, max 30 chars each)
+            - long_headlines (List[str]): Long headlines (1-5, max 90 chars each)
+            - descriptions (List[str]): Descriptions (2-5, max 90 chars each)
+            - business_name (str): Business name (max 25 chars)
+            - marketing_images (List[str]): Landscape images - local file paths (1-20, 1.91:1)
+            - square_marketing_images (List[str]): Square images - local file paths (1-20, 1:1)
+            - logo_images (List[str]): Logo images - local file paths (1-5, 1:1)
+            - portrait_marketing_images (Optional[List[str]]): Portrait images (optional, 4:5)
+            - bidding_strategy (BiddingStrategyType): Bidding strategy
+            - geo_target_country_codes (List[str]): Country codes (REQUIRED)
+            - call_to_action (CallToActionType): CTA type
+            - start_paused (bool): Create paused (default: True)
+
+    Returns:
+        str: Created campaign details with IDs
+
+    Examples:
+        - "Create PMAX campaign 'Summer Sale' with $50/day budget targeting Italy"
+        - "Set up Performance Max with 5 headlines and 3 descriptions"
+        - "Launch PMAX campaign for US and Canada with MAXIMIZE_CONVERSIONS"
+
+    Note:
+        - Images are uploaded from local file paths (jpg, png, gif, webp supported)
+        - Geo targeting must be provided (no default countries)
+        - Campaign is created PAUSED for safety - enable when ready
+    """
+    try:
+        client = _get_google_ads_client()
+        customer_id = _validate_customer_id(params.customer_id)
+
+        # Services
+        budget_service = client.get_service("CampaignBudgetService")
+        campaign_service = client.get_service("CampaignService")
+        asset_service = client.get_service("AssetService")
+        asset_group_service = client.get_service("AssetGroupService")
+        asset_group_asset_service = client.get_service("AssetGroupAssetService")
+        campaign_criterion_service = client.get_service("CampaignCriterionService")
+        geo_target_constant_service = client.get_service("GeoTargetConstantService")
+
+        # Generate temporary resource names for batch operation
+        budget_temp_id = "-1"
+        campaign_temp_id = "-2"
+        asset_group_temp_id = "-3"
+
+        # ====================================================================
+        # Step 1: Create Campaign Budget
+        # ====================================================================
+        budget_operation = client.get_type("CampaignBudgetOperation")
+        budget = budget_operation.create
+        budget.name = f"{params.campaign_name} Budget"
+        budget.amount_micros = params.daily_budget_micros
+        budget.delivery_method = client.enums.BudgetDeliveryMethodEnum.STANDARD
+        budget.explicitly_shared = False
+
+        budget_response = budget_service.mutate_campaign_budgets(
+            customer_id=customer_id,
+            operations=[budget_operation]
+        )
+        budget_resource_name = budget_response.results[0].resource_name
+
+        # ====================================================================
+        # Step 2: Create PMAX Campaign
+        # ====================================================================
+        campaign_operation = client.get_type("CampaignOperation")
+        campaign = campaign_operation.create
+        campaign.name = params.campaign_name
+        campaign.advertising_channel_type = client.enums.AdvertisingChannelTypeEnum.PERFORMANCE_MAX
+        campaign.campaign_budget = budget_resource_name
+
+        # Set status
+        if params.start_paused:
+            campaign.status = client.enums.CampaignStatusEnum.PAUSED
+        else:
+            campaign.status = client.enums.CampaignStatusEnum.ENABLED
+
+        # EU Political Advertising declaration (required for EU accounts)
+        campaign.contains_eu_political_advertising = (
+            client.enums.EuPoliticalAdvertisingStatusEnum.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING
+        )
+
+        # Set bidding strategy
+        if params.bidding_strategy == BiddingStrategyType.MAXIMIZE_CONVERSIONS:
+            campaign.maximize_conversions.target_cpa_micros = params.target_cpa_micros or 0
+        elif params.bidding_strategy == BiddingStrategyType.MAXIMIZE_CONVERSION_VALUE:
+            if params.target_roas:
+                campaign.maximize_conversion_value.target_roas = params.target_roas
+        elif params.bidding_strategy == BiddingStrategyType.TARGET_CPA:
+            campaign.maximize_conversions.target_cpa_micros = params.target_cpa_micros
+        elif params.bidding_strategy == BiddingStrategyType.TARGET_ROAS:
+            campaign.maximize_conversion_value.target_roas = params.target_roas
+
+        # Note: shopping_setting is only needed if connecting to Merchant Center
+        # For non-shopping PMAX campaigns, we skip this setting
+
+        campaign_response = campaign_service.mutate_campaigns(
+            customer_id=customer_id,
+            operations=[campaign_operation]
+        )
+        campaign_resource_name = campaign_response.results[0].resource_name
+        campaign_id = campaign_resource_name.split("/")[-1]
+
+        # ====================================================================
+        # Step 3: Add Geo Targeting
+        # ====================================================================
+        geo_operations = []
+        for country_code in params.geo_target_country_codes:
+            # Look up geo target constant by country code
+            query = f"""
+                SELECT geo_target_constant.resource_name, geo_target_constant.id
+                FROM geo_target_constant
+                WHERE geo_target_constant.country_code = '{country_code}'
+                    AND geo_target_constant.target_type = 'Country'
+                LIMIT 1
+            """
+            ga_service = client.get_service("GoogleAdsService")
+            response = ga_service.search(customer_id=customer_id, query=query)
+
+            geo_resource = None
+            for row in response:
+                geo_resource = row.geo_target_constant.resource_name
+                break
+
+            if geo_resource:
+                geo_operation = client.get_type("CampaignCriterionOperation")
+                criterion = geo_operation.create
+                criterion.campaign = campaign_resource_name
+                criterion.location.geo_target_constant = geo_resource
+                criterion.negative = False
+                geo_operations.append(geo_operation)
+
+        if geo_operations:
+            campaign_criterion_service.mutate_campaign_criteria(
+                customer_id=customer_id,
+                operations=geo_operations
+            )
+
+        # ====================================================================
+        # Step 4-6: Create Assets, Asset Group, and Link them atomically
+        # PMAX requires asset group to have assets at creation time
+        # We use GoogleAdsService.Mutate for atomic batch operation
+        # ====================================================================
+        import os
+
+        ga_service = client.get_service("GoogleAdsService")
+        asset_group_name = params.asset_group_name or f"{params.campaign_name} Asset Group"
+
+        def _read_image_file(path: str) -> bytes:
+            """Read image file and return bytes."""
+            expanded_path = os.path.expanduser(path)
+            with open(expanded_path, 'rb') as f:
+                return f.read()
+
+        # Build all mutate operations
+        mutate_operations = []
+        asset_temp_id = -100  # Start temp IDs for assets
+        asset_group_temp_id = -1  # Temp ID for asset group
+        asset_info = []  # Track (temp_id, asset_type) for linking
+
+        # === Create text asset operations ===
+        # Headlines
+        for headline in params.headlines:
+            mutate_op = client.get_type("MutateOperation")
+            asset = mutate_op.asset_operation.create
+            asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+            asset.name = f"Headline: {headline[:20]}"
+            asset.text_asset.text = headline
+            mutate_operations.append(mutate_op)
+            asset_info.append((asset_temp_id, "HEADLINE"))
+            asset_temp_id -= 1
+
+        # Long headlines
+        for long_headline in params.long_headlines:
+            mutate_op = client.get_type("MutateOperation")
+            asset = mutate_op.asset_operation.create
+            asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+            asset.name = f"Long Headline: {long_headline[:20]}"
+            asset.text_asset.text = long_headline
+            mutate_operations.append(mutate_op)
+            asset_info.append((asset_temp_id, "LONG_HEADLINE"))
+            asset_temp_id -= 1
+
+        # Descriptions
+        for description in params.descriptions:
+            mutate_op = client.get_type("MutateOperation")
+            asset = mutate_op.asset_operation.create
+            asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+            asset.name = f"Description: {description[:20]}"
+            asset.text_asset.text = description
+            mutate_operations.append(mutate_op)
+            asset_info.append((asset_temp_id, "DESCRIPTION"))
+            asset_temp_id -= 1
+
+        # Business name
+        mutate_op = client.get_type("MutateOperation")
+        asset = mutate_op.asset_operation.create
+        asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+        asset.name = f"Business Name: {params.business_name}"
+        asset.text_asset.text = params.business_name
+        mutate_operations.append(mutate_op)
+        asset_info.append((asset_temp_id, "BUSINESS_NAME"))
+        asset_temp_id -= 1
+
+        # === Create image asset operations ===
+        # Marketing images (landscape)
+        for path in params.marketing_images:
+            image_data = _read_image_file(path)
+            mutate_op = client.get_type("MutateOperation")
+            asset = mutate_op.asset_operation.create
+            asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+            asset.name = f"Marketing: {os.path.basename(path)[:50]}"
+            asset.image_asset.data = image_data
+            mutate_operations.append(mutate_op)
+            asset_info.append((asset_temp_id, "MARKETING_IMAGE"))
+            asset_temp_id -= 1
+
+        # Square marketing images
+        for path in params.square_marketing_images:
+            image_data = _read_image_file(path)
+            mutate_op = client.get_type("MutateOperation")
+            asset = mutate_op.asset_operation.create
+            asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+            asset.name = f"Square: {os.path.basename(path)[:50]}"
+            asset.image_asset.data = image_data
+            mutate_operations.append(mutate_op)
+            asset_info.append((asset_temp_id, "SQUARE_MARKETING_IMAGE"))
+            asset_temp_id -= 1
+
+        # Logo images
+        for path in params.logo_images:
+            image_data = _read_image_file(path)
+            mutate_op = client.get_type("MutateOperation")
+            asset = mutate_op.asset_operation.create
+            asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+            asset.name = f"Logo: {os.path.basename(path)[:50]}"
+            asset.image_asset.data = image_data
+            mutate_operations.append(mutate_op)
+            asset_info.append((asset_temp_id, "LOGO"))
+            asset_temp_id -= 1
+
+        # Portrait images (optional)
+        if params.portrait_marketing_images:
+            for path in params.portrait_marketing_images:
+                image_data = _read_image_file(path)
+                mutate_op = client.get_type("MutateOperation")
+                asset = mutate_op.asset_operation.create
+                asset.resource_name = client.get_service("AssetService").asset_path(customer_id, str(asset_temp_id))
+                asset.name = f"Portrait: {os.path.basename(path)[:50]}"
+                asset.image_asset.data = image_data
+                mutate_operations.append(mutate_op)
+                asset_info.append((asset_temp_id, "PORTRAIT_MARKETING_IMAGE"))
+                asset_temp_id -= 1
+
+        # === Create asset group operation ===
+        mutate_op = client.get_type("MutateOperation")
+        asset_group = mutate_op.asset_group_operation.create
+        asset_group.resource_name = client.get_service("AssetGroupService").asset_group_path(customer_id, str(asset_group_temp_id))
+        asset_group.name = asset_group_name
+        asset_group.campaign = campaign_resource_name
+        asset_group.status = client.enums.AssetGroupStatusEnum.ENABLED
+        for url in params.final_urls:
+            asset_group.final_urls.append(url)
+        mutate_operations.append(mutate_op)
+
+        # === Create asset group asset link operations ===
+        asset_group_resource = client.get_service("AssetGroupService").asset_group_path(customer_id, str(asset_group_temp_id))
+
+        for temp_id, asset_type in asset_info:
+            mutate_op = client.get_type("MutateOperation")
+            link = mutate_op.asset_group_asset_operation.create
+            link.asset_group = asset_group_resource
+            link.asset = client.get_service("AssetService").asset_path(customer_id, str(temp_id))
+
+            # Set field type
+            if asset_type == "HEADLINE":
+                link.field_type = client.enums.AssetFieldTypeEnum.HEADLINE
+            elif asset_type == "LONG_HEADLINE":
+                link.field_type = client.enums.AssetFieldTypeEnum.LONG_HEADLINE
+            elif asset_type == "DESCRIPTION":
+                link.field_type = client.enums.AssetFieldTypeEnum.DESCRIPTION
+            elif asset_type == "BUSINESS_NAME":
+                link.field_type = client.enums.AssetFieldTypeEnum.BUSINESS_NAME
+            elif asset_type == "MARKETING_IMAGE":
+                link.field_type = client.enums.AssetFieldTypeEnum.MARKETING_IMAGE
+            elif asset_type == "SQUARE_MARKETING_IMAGE":
+                link.field_type = client.enums.AssetFieldTypeEnum.SQUARE_MARKETING_IMAGE
+            elif asset_type == "LOGO":
+                link.field_type = client.enums.AssetFieldTypeEnum.LOGO
+            elif asset_type == "PORTRAIT_MARKETING_IMAGE":
+                link.field_type = client.enums.AssetFieldTypeEnum.PORTRAIT_MARKETING_IMAGE
+
+            mutate_operations.append(mutate_op)
+
+        # === Execute batch mutation ===
+        batch_response = ga_service.mutate(
+            customer_id=customer_id,
+            mutate_operations=mutate_operations
+        )
+
+        # Extract asset group resource name from response
+        asset_group_resource_name = None
+        for result in batch_response.mutate_operation_responses:
+            if result.asset_group_result.resource_name:
+                asset_group_resource_name = result.asset_group_result.resource_name
+                break
+
+        # ====================================================================
+        # Format Response
+        # ====================================================================
+        # Calculate image counts
+        portrait_count = len(params.portrait_marketing_images) if params.portrait_marketing_images else 0
+
+        if params.response_format == ResponseFormat.MARKDOWN:
+            return f"""## ✅ Performance Max Campaign Created Successfully!
+
+### Campaign Details
+- **Campaign Name**: {params.campaign_name}
+- **Campaign ID**: {campaign_id}
+- **Status**: {'PAUSED' if params.start_paused else 'ENABLED'}
+- **Daily Budget**: ${params.daily_budget_micros / 1_000_000:.2f}
+- **Bidding Strategy**: {params.bidding_strategy.value}
+
+### Asset Group
+- **Name**: {asset_group_name}
+- **Final URLs**: {', '.join(params.final_urls)}
+
+### Text Assets Created
+| Type | Count |
+|------|-------|
+| Headlines | {len(params.headlines)} |
+| Long Headlines | {len(params.long_headlines)} |
+| Descriptions | {len(params.descriptions)} |
+| Business Name | 1 |
+
+### Image Assets Created
+| Type | Count |
+|------|-------|
+| Marketing Images (landscape) | {len(params.marketing_images)} |
+| Square Marketing Images | {len(params.square_marketing_images)} |
+| Logo Images | {len(params.logo_images)} |
+| Portrait Images | {portrait_count} |
+
+### Geo Targeting
+- **Countries**: {', '.join(params.geo_target_country_codes)}
+
+### Next Steps
+1. **Review settings**: Check the campaign in Google Ads before enabling
+2. **Enable campaign**: Use `google_ads_update_campaign_status` when ready
+3. **Monitor performance**: Check with `google_ads_get_campaign_insights` after launch
+
+### Important Notes
+- PMAX campaigns need at least 1-2 weeks to optimize
+- Ensure conversion tracking is properly set up
+- Consider adding video assets for better performance
+"""
+        else:
+            return json.dumps({
+                "success": True,
+                "campaign_id": campaign_id,
+                "campaign_name": params.campaign_name,
+                "campaign_resource_name": campaign_resource_name,
+                "status": "PAUSED" if params.start_paused else "ENABLED",
+                "daily_budget_micros": params.daily_budget_micros,
+                "bidding_strategy": params.bidding_strategy.value,
+                "asset_group_name": asset_group_name,
+                "asset_group_resource_name": asset_group_resource_name,
+                "final_urls": params.final_urls,
+                "text_assets_created": {
+                    "headlines": len(params.headlines),
+                    "long_headlines": len(params.long_headlines),
+                    "descriptions": len(params.descriptions),
+                    "business_name": 1
+                },
+                "image_assets_created": {
+                    "marketing_images": len(params.marketing_images),
+                    "square_marketing_images": len(params.square_marketing_images),
+                    "logo_images": len(params.logo_images),
+                    "portrait_marketing_images": portrait_count
+                },
+                "geo_targets": params.geo_target_country_codes
             }, indent=2)
 
     except Exception as e:

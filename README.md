@@ -37,7 +37,8 @@ Model Context Protocol (MCP) server for Google Ads API integration. Provides com
 - `google_ads_add_negative_keywords` - Add negative keywords (campaign/ad group level)
 - `google_ads_remove_negative_keywords` - Remove negative keywords
 
-### Performance Max Assets
+### Performance Max Campaigns
+- `google_ads_create_pmax_campaign` - **NEW** Create complete PMAX campaigns with text and image assets
 - `google_ads_get_asset_performance` - Get PMax asset performance metrics
 - `google_ads_create_text_assets` - Create and add text assets to asset groups
 - `google_ads_remove_asset_from_group` - Remove assets from asset groups
@@ -166,6 +167,40 @@ claude mcp add google-ads \
 
 ## Tool Documentation
 
+### Performance Max Campaign Creation
+
+#### `google_ads_create_pmax_campaign`
+Create a complete Performance Max campaign with all required assets in a single operation.
+
+**Parameters:**
+- `customer_id` (required): 10-digit account ID
+- `campaign_name` (required): Campaign name
+- `daily_budget_micros` (required): Daily budget in micros (1000000 = $1)
+- `final_urls` (required): Landing page URLs (1-10)
+- `headlines` (required): Headlines (3-15, max 30 chars each)
+- `long_headlines` (required): Long headlines (1-5, max 90 chars each)
+- `descriptions` (required): Descriptions (2-5, max 90 chars each)
+- `business_name` (required): Business name (max 25 chars)
+- `marketing_images` (required): Local file paths for landscape images (1.91:1 ratio)
+- `square_marketing_images` (required): Local file paths for square images (1:1 ratio)
+- `logo_images` (required): Local file paths for logo images (1:1 ratio)
+- `portrait_marketing_images` (optional): Local file paths for portrait images (4:5 ratio)
+- `geo_target_country_codes` (required): Country codes for targeting (e.g., ["IT", "US"])
+- `bidding_strategy` (optional): MAXIMIZE_CONVERSIONS or MAXIMIZE_CONVERSION_VALUE
+- `start_paused` (optional): Create paused for review (default: true)
+
+**Example:**
+```
+Create a PMAX campaign "Summer Sale" with $50/day budget targeting Italy
+```
+
+**Features:**
+- Creates budget, campaign, asset group, and all assets atomically
+- Uploads images from local file paths
+- Supports all PMAX asset types (text + images)
+- Automatic geo targeting configuration
+- Created in PAUSED status for safety review
+
 ### Conversion Tools
 
 #### `google_ads_get_conversions_by_action`
@@ -262,7 +297,13 @@ MIT License - See LICENSE file for details
 
 ## Version History
 
-### v1.3.0 (Current)
+### v1.4.0 (Current)
+- Added `google_ads_create_pmax_campaign` - Create complete PMAX campaigns with text and image assets
+- PMAX campaigns now support local image file uploads (marketing, square, logo, portrait)
+- Atomic batch operations using `GoogleAdsService.Mutate` with temporary IDs
+- All PMAX asset management tools tested and verified
+
+### v1.3.0
 - Added `google_ads_get_conversions_by_action` - Conversion breakdown by action name
 - Full conversion tracking tools
 - Geographic targeting and performance
