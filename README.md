@@ -108,19 +108,60 @@ Model Context Protocol (MCP) server for Google Ads API integration. Provides com
 
 ### Getting Google Ads API Credentials
 
-1. **Developer Token:**
-   - Go to [Google Ads API Center](https://ads.google.com/aw/apicenter)
-   - Apply for API access and get your developer token
+Segui questi 4 passaggi per ottenere tutte le credenziali necessarie.
 
-2. **OAuth2 Credentials:**
-   - Create a project in [Google Cloud Console](https://console.cloud.google.com)
-   - Enable Google Ads API
-   - Create OAuth 2.0 credentials (Desktop app)
-   - Download client ID and secret
+#### Step 1: Developer Token (da Google Ads)
 
-3. **Refresh Token:**
-   - Use the [Google Ads API authentication guide](https://developers.google.com/google-ads/api/docs/oauth/overview)
-   - Run OAuth flow to generate refresh token
+1. Vai su [Google Ads API Center](https://ads.google.com/aw/apicenter)
+2. Accedi con l'account Google Ads
+3. Richiedi l'accesso API (se non già attivo)
+4. Copia il **Developer Token**
+
+> **Nota:** Il token in modalità "test" funziona solo sui tuoi account. Per accesso completo serve approvazione.
+
+#### Step 2: Progetto Google Cloud
+
+1. Vai su [Google Cloud Console](https://console.cloud.google.com)
+2. Crea un nuovo progetto (o selezionane uno esistente)
+3. Vai su **APIs & Services → Library**
+4. Cerca "Google Ads API" e clicca **Enable**
+
+#### Step 3: Credenziali OAuth2
+
+1. In Google Cloud Console, vai su **APIs & Services → Credentials**
+2. Clicca **Create Credentials → OAuth 2.0 Client IDs**
+3. Se richiesto, configura la schermata di consenso OAuth (tipo: External, inserisci nome app e email)
+4. Seleziona **Application type: Desktop app**
+5. Assegna un nome (es. "Google Ads MCP")
+6. Clicca **Create**
+7. Salva **Client ID** e **Client Secret**
+
+#### Step 4: Genera il Refresh Token
+
+Usa lo script incluso in questo repository:
+
+```bash
+# Dalla cartella del progetto mcp-google-ads
+source .venv/bin/activate
+python generate_token.py
+```
+
+Lo script:
+1. Ti chiederà Client ID e Client Secret
+2. Aprirà il browser per l'autorizzazione Google
+3. Dopo l'autorizzazione, mostrerà il **Refresh Token**
+
+Copia il token e aggiungilo al file `.env`.
+
+#### Riepilogo Credenziali
+
+| Credenziale | Dove trovarla |
+|-------------|---------------|
+| `GOOGLE_ADS_DEVELOPER_TOKEN` | Google Ads API Center |
+| `GOOGLE_ADS_CLIENT_ID` | Google Cloud Console → Credentials |
+| `GOOGLE_ADS_CLIENT_SECRET` | Google Cloud Console → Credentials |
+| `GOOGLE_ADS_REFRESH_TOKEN` | Generato con `python generate_token.py` |
+| `GOOGLE_ADS_LOGIN_CUSTOMER_ID` | ID account MCC (opzionale, 10 cifre senza trattini) |
 
 ## Usage
 

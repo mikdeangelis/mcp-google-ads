@@ -8,3 +8,4 @@ google-ads>=24.0.0
 
 # Optional: For development and testing
 python-dotenv>=1.0.0
+google-auth-oauthlib>=0.8.0
