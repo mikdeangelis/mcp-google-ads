@@ -35,7 +35,7 @@ mcp = FastMCP("google_ads_mcp")
 
 # Constants
 CHARACTER_LIMIT = 25000  # Maximum response size in characters
-DEFAULT_API_VERSION = "v19"  # Google Ads API version (library v28.x supports v19+)
+DEFAULT_API_VERSION = "v23"  # Google Ads API version (library v29.x supports v20-v23)
 
 
 # ============================================================================
@@ -1810,8 +1810,6 @@ async def google_ads_list_campaigns(params: ListCampaignsInput) -> str:
                 campaign.advertising_channel_type,
                 campaign.bidding_strategy_type,
                 campaign_budget.amount_micros,
-                campaign.start_date,
-                campaign.end_date,
                 campaign.optimization_score
             FROM campaign
             {where_clause}
@@ -1841,8 +1839,6 @@ async def google_ads_list_campaigns(params: ListCampaignsInput) -> str:
                 "type": campaign.advertising_channel_type.name,
                 "bidding_strategy": campaign.bidding_strategy_type.name,
                 "budget_micros": budget.amount_micros if budget else None,
-                "start_date": campaign.start_date,
-                "end_date": campaign.end_date,
                 "optimization_score": campaign.optimization_score if hasattr(campaign, 'optimization_score') else None
             })
 
@@ -1859,9 +1855,6 @@ async def google_ads_list_campaigns(params: ListCampaignsInput) -> str:
                 lines.append(f"- **Bidding**: {camp['bidding_strategy']}")
                 if camp['budget_micros']:
                     lines.append(f"- **Daily Budget**: {_format_money_micros(camp['budget_micros'])}")
-                lines.append(f"- **Start Date**: {camp['start_date']}")
-                if camp['end_date']:
-                    lines.append(f"- **End Date**: {camp['end_date']}")
                 if camp['optimization_score'] is not None:
                     lines.append(f"- **Optimization Score**: {camp['optimization_score']:.2f}")
                 lines.append("")
@@ -1934,8 +1927,6 @@ async def google_ads_get_campaign(params: GetCampaignInput) -> str:
                 campaign.bidding_strategy_type,
                 campaign_budget.amount_micros,
                 campaign_budget.delivery_method,
-                campaign.start_date,
-                campaign.end_date,
                 campaign.network_settings.target_google_search,
                 campaign.network_settings.target_search_network,
                 campaign.network_settings.target_content_network,
@@ -1966,10 +1957,6 @@ async def google_ads_get_campaign(params: GetCampaignInput) -> str:
                 "amount_micros": budget.amount_micros if budget else None,
                 "delivery_method": budget.delivery_method.name if budget else None
             },
-            "dates": {
-                "start": campaign.start_date,
-                "end": campaign.end_date
-            },
             "network_settings": {
                 "google_search": campaign.network_settings.target_google_search,
                 "search_network": campaign.network_settings.target_search_network,
@@ -1995,12 +1982,6 @@ async def google_ads_get_campaign(params: GetCampaignInput) -> str:
             if campaign_info['budget']['amount_micros']:
                 lines.append(f"- **Daily Budget**: {_format_money_micros(campaign_info['budget']['amount_micros'])}")
                 lines.append(f"- **Delivery Method**: {campaign_info['budget']['delivery_method']}")
-            lines.append("")
-
-            lines.append("## Schedule")
-            lines.append(f"- **Start Date**: {campaign_info['dates']['start']}")
-            if campaign_info['dates']['end']:
-                lines.append(f"- **End Date**: {campaign_info['dates']['end']}")
             lines.append("")
 
             lines.append("## Network Targeting")

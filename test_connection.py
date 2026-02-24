@@ -46,7 +46,7 @@ try:
         credentials["login_customer_id"] = creds["GOOGLE_ADS_LOGIN_CUSTOMER_ID"]
 
     # Initialize client
-    client = GoogleAdsClient.load_from_dict(credentials, version="v19")
+    client = GoogleAdsClient.load_from_dict(credentials, version="v23")
     print("  ✅ Client initialized successfully")
 
     # Try to list accessible customers

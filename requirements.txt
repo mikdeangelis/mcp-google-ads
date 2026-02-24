@@ -4,7 +4,7 @@
 # Core dependencies
 mcp>=1.1.0
 pydantic>=2.0.0
-google-ads>=24.0.0
+google-ads>=29.0.0
 
 # Optional: For development and testing
 python-dotenv>=1.0.0
